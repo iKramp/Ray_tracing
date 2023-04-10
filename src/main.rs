@@ -4,6 +4,8 @@ extern crate rand;
 const WIDTH: u32 = 160;
 const HEIGHT: u32 = 144;
 
+const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
+
 
 pub fn main() {
     let sdl_context = sdl2::init().unwrap();
@@ -15,6 +17,8 @@ pub fn main() {
     let mut canvas = window.into_canvas().build().unwrap();
     let mut event_pump = sdl_context.event_pump().unwrap();//code above inits sdl2 somehow, idk what it does
 
+
+
     loop {
         for event in event_pump.poll_iter() {
             match event {
@@ -22,8 +26,11 @@ pub fn main() {
                 _ => {}
             }
         }
+
         canvas.set_draw_color(sdl2::pixels::Color::RGB(0, 0, 0));
         canvas.clear();
         canvas.present();
     }
+
+
 }
