@@ -4,7 +4,6 @@ extern crate rand;
 const WIDTH: u32 = 160;
 const HEIGHT: u32 = 144;
 
-const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 
 
 pub fn main() {
