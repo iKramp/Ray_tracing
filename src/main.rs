@@ -1,9 +1,12 @@
 extern crate rand;
 extern crate sdl2;
+extern crate vector3d;
 pub mod trace;
 
+use hit::*;
 use rand::prelude::*;
 use trace::*;
+use vector3d::Vector3d;
 
 pub struct CamData {
     canvas_width: usize,
@@ -13,8 +16,18 @@ pub struct CamData {
 }
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (usize, usize)) -> Ray {
-    let offset_yaw = (pix_x as f64 / data.canvas_width as f64 - 0.5) * data.fov;
-    let offset_pitch = (-(pix_y as f64) / data.canvas_width as f64 + 0.5) * data.fov; //also width so we get uniform scaling, aka when the window is squished we don't want the y axis to angle as much as the x axis
+    //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
+    let fov_rad = data.fov / 180.0 * PI;
+    let virt_canvas_height = (fov_rad / 2.0).tan();
+
+    let pix_offset_y = (-(pix_y as f64) / data.canvas_height as f64 + 0.5) * virt_canvas_height;
+    let pix_offset_x = (pix_x as f64 / data.canvas_height as f64 - 0.5) * virt_canvas_height;
+
+    //println!("{},{}   ", pix_offset_x, pix_offset_y);
+
+    let offset_yaw = pix_offset_x.atan();
+    let offset_pitch = pix_offset_y.atan();
+
     let mut cam_vec = data.transform.clone();
     cam_vec.normalize();
 
@@ -27,28 +40,39 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (usize, usize)
         pitch = PI - pitch;
     }
 
-    yaw += offset_yaw * PI / 180.0;
-    pitch += offset_pitch * PI / 180.0;
+    yaw += offset_yaw;
+    pitch += offset_pitch;
 
-    return trace::Ray {
-        pos: data.transform.pos,
-        orientation: Vec3 {
-            x: yaw.sin() * pitch.cos(),
-            y: pitch.sin(),
-            z: yaw.cos() * pitch.cos(),
-        },
-    };
+    return trace::Ray::new(
+        data.transform.pos,
+        Vector3d::new(
+            yaw.sin() * pitch.cos(),
+            pitch.sin(),
+            yaw.cos() * pitch.cos(),
+        ),
+    );
 }
 
 pub fn main() {
     let data = CamData {
-        canvas_width: 1280,
-        canvas_height: 1280,//720,
+        canvas_width: 1000,  //720
+        canvas_height: 1000, //720,
         fov: 90.0,
         transform: Ray {
-            pos: Vec3::new(0.0, 0.0, 0.0),
-            orientation: Vec3::new(0.0, 0.0, 1.0),
+            pos: Vector3d::new(0.0, 0.0, 0.0),
+            orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
+    };
+    let scene_info = SceneInfo {
+        sun_orientation: Vector3d::new(0.0, -1.0, 0.0),
+        verts: Vec::new(),
+        tris: Vec::new(),
+        spheres: vec![
+            Sphere::new(Vector3d::new(0.4, 0.4, 3.0), 0.5),
+            Sphere::new(Vector3d::new(-0.4, 0.4, 5.0), 0.5),
+            Sphere::new(Vector3d::new(0.4, -0.4, 9.0), 0.5),
+            Sphere::new(Vector3d::new(-0.4, -0.4, 20.0), 0.5),
+        ],
     };
 
     let sdl_context = sdl2::init().unwrap();
@@ -72,11 +96,7 @@ pub fn main() {
     for pix_y in 0..data.canvas_height {
         for pix_x in 0..data.canvas_width {
             let mut vec = claculate_vec_dir_from_cam(&data, (pix_x, pix_y));
-            let color = vec.get_color();
-            if pix_x == 0 {
-                print!("{:.1},{:.1},{:.1}   ", vec.orientation.x, vec.orientation.y, vec.orientation.z);
-                print!("{:.1},{:.1},{:.1}   ", color.r, color.g, color.b);
-            }
+            let color = vec.get_color(&scene_info);
             canvas.set_draw_color(color);
             let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
         }

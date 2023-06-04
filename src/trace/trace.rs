@@ -1,40 +1,11 @@
 use sdl2;
 use std::ops;
+extern crate vector3d;
+
+use super::hit::*;
+use vector3d::Vector3d;
 
 pub const PI: f64 = 3.14159265358979323846264338327950288419716939937510; //idk how many digits it can store but this many can't hurt
-
-#[derive(Clone, Copy)]
-pub struct Vec3 {
-    pub x: f64, //left-/right+
-    pub y: f64, //down-/up+
-    pub z: f64, //backward-/forward+
-}
-
-impl Vec3 {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Vec3 { x, y, z }
-    }
-}
-
-impl ops::Add<Vec3> for Vec3 {
-    type Output = Vec3;
-
-    fn add(self, rhs: Vec3) -> Self::Output {
-        Vec3::new(self.x + rhs.x, self.y + rhs.y, self.z + rhs.z)
-    }
-}
-
-impl ops::Mul<f64> for Vec3 {
-    type Output = Vec3;
-
-    fn mul(self, rhs: f64) -> Self::Output {
-        Vec3::new(
-            self.x * rhs,
-            self.y * rhs,
-            self.z * rhs,
-        )
-    }
-}
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -76,38 +47,58 @@ impl Into<sdl2::pixels::Color> for Color {
 }
 
 pub struct SceneInfo {
-    pub sun_orientation: Vec3,
-    pub verts: Vec<Vec3>,
+    pub sun_orientation: Vector3d<f64>,
+    pub verts: Vec<Vector3d<f64>>,
     pub tris: Vec<(usize, usize, usize)>, //optimize by packing into smaller areas
+    pub spheres: Vec<Sphere>,
 }
 
 #[derive(Clone, Copy)]
 pub struct Ray {
-    pub pos: Vec3,
-    pub orientation: Vec3,
+    pub pos: Vector3d<f64>,
+    pub orientation: Vector3d<f64>,
 }
 
 impl Ray {
+    pub fn new(pos: Vector3d<f64>, orientation: Vector3d<f64>) -> Self {
+        Ray { pos, orientation }
+    }
+
     fn len(&self) -> f64 {
-        (self.pos.x * self.pos.x + self.pos.y * self.pos.y + self.pos.z * self.pos.z).sqrt()
+        (self.orientation.x * self.orientation.x
+            + self.orientation.y * self.orientation.y
+            + self.orientation.z * self.orientation.z)
+            .sqrt()
     }
 
     pub fn normalize(&mut self) {
         let len = self.len();
-        self.pos.x = self.pos.x / len;
-        self.pos.y = self.pos.y / len;
-        self.pos.z = self.pos.z / len;
+        self.orientation.x = self.orientation.x / len;
+        self.orientation.y = self.orientation.y / len;
+        self.orientation.z = self.orientation.z / len;
     }
 
-    pub fn get_color(&mut self) -> Color {
+    pub fn get_color(&mut self, scene_info: &SceneInfo) -> Color {
+        self.normalize();
+        let mut record = HitRecord::new();
+        for sphere in &scene_info.spheres {
+            let _result = sphere.hit(self, (0.0, f64::MAX), &mut record);
+        }
+        if record.t != f64::INFINITY {
+            return Color::new(
+                ((record.normal.x + 1.0) * 255.0 / 2.0) as u8,
+                ((record.normal.y + 1.0) * 255.0 / 2.0) as u8,
+                ((record.normal.z + 1.0) * 255.0 / 2.0) as u8,
+            );
+        }
+
         self.get_background_color()
     }
 
-    fn get_background_color(&mut self) -> Color {
-        self.normalize();
-        let factor = (self.orientation.y + 0.5).clamp(0.0, 1.0);
-        //print!("{:.1},{:.1},{:.1}   ", self.orientation.x, self.orientation.y, self.orientation.z);
-        Color::new(255, 255, 255) * (1.0 - factor)
-            + Color::new(105, 212, 236) * (factor)
+    fn get_background_color(&self) -> Color {
+        let mut temp = self.clone();
+        temp.normalize();
+        let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
+        Color::new(255, 255, 255) * (1.0 - factor) + Color::new(105, 212, 236) * (factor)
     }
 }
