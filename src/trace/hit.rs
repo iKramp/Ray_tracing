@@ -6,6 +6,7 @@ pub struct HitRecord {
     pub pos: Vector3d<f64>,
     pub normal: Vector3d<f64>,
     pub t: f64,
+    pub front_face: bool,
 }
 
 impl HitRecord {
@@ -14,14 +15,16 @@ impl HitRecord {
             pos: Vector3d::new(0.0, 0.0, 0.0),
             normal: Vector3d::new(0.0, 0.0, 0.0),
             t: f64::INFINITY,
+            front_face: true,
         }
     }
 
-    pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64) {
+    pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64, ray: &Ray) {
         if t < self.t {
             self.t = t;
             self.pos = pos;
-            self.normal = normal;
+            self.front_face = ray.orientation.dot(normal) < 0.0;
+            self.normal = if self.front_face { normal } else {-normal};
         }
     }
 }
@@ -56,14 +59,14 @@ impl HitObject for Sphere {
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root);
+                record.try_add(hit, normal, root, ray);
                 return true;
             }
             let root = (-half_b + discriminant.sqrt()) / a; //uncomment if you want to show sphere backfaces
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root);
+                record.try_add(hit, normal, root, ray);
                 return true;
             }
         }
@@ -71,6 +74,6 @@ impl HitObject for Sphere {
     }
 
     fn calculate_normal(&self, hit: Vector3d<f64>) -> Vector3d<f64> {
-        hit - self.pos
+        (hit - self.pos) / self.radius
     }
 }

@@ -67,12 +67,12 @@ pub fn main() {
         sun_orientation: Vector3d::new(0.0, -1.0, 0.0),
         verts: Vec::new(),
         tris: Vec::new(),
-        spheres: vec![
-            Sphere::new(Vector3d::new(0.4, 0.4, 3.0), 0.5),
-            Sphere::new(Vector3d::new(-0.4, 0.4, 5.0), 0.5),
-            Sphere::new(Vector3d::new(0.4, -0.4, 9.0), 0.5),
-            Sphere::new(Vector3d::new(-0.4, -0.4, 20.0), 0.5),
-        ],
+        hittable_objects: vec![
+            Box::new(Sphere::new(Vector3d::new(0.4, 0.4, 3.0), 0.5)),
+            Box::new(Sphere::new(Vector3d::new(-0.4, 0.4, 5.0), 0.5)),
+            Box::new(Sphere::new(Vector3d::new(0.4, -0.4, 9.0), 0.5)),
+            Box::new(Sphere::new(Vector3d::new(-0.4, -0.4, 20.0), 0.5)),
+        ]
     };
 
     let sdl_context = sdl2::init().unwrap();

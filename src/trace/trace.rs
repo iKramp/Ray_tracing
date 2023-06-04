@@ -50,7 +50,7 @@ pub struct SceneInfo {
     pub sun_orientation: Vector3d<f64>,
     pub verts: Vec<Vector3d<f64>>,
     pub tris: Vec<(usize, usize, usize)>, //optimize by packing into smaller areas
-    pub spheres: Vec<Sphere>,
+    pub hittable_objects: Vec<Box<dyn HitObject>>
 }
 
 #[derive(Clone, Copy)]
@@ -81,8 +81,11 @@ impl Ray {
     pub fn get_color(&mut self, scene_info: &SceneInfo) -> Color {
         self.normalize();
         let mut record = HitRecord::new();
-        for sphere in &scene_info.spheres {
+        /*for sphere in &scene_info.spheres {
             let _result = sphere.hit(self, (0.0, f64::MAX), &mut record);
+        }*/
+        for object in &scene_info.hittable_objects {
+            let _res = object.hit(self, (0.0, f64::MAX), &mut record);
         }
         if record.t != f64::INFINITY {
             return Color::new(
