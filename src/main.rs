@@ -70,6 +70,7 @@ pub fn main() {
             Box::new(Sphere::new(Vector3d::new(-0.4, 0.4, 5.0), 0.5)),
             Box::new(Sphere::new(Vector3d::new(0.4, -0.4, 9.0), 0.5)),
             Box::new(Sphere::new(Vector3d::new(-0.4, -0.4, 20.0), 0.5)),
+            Box::new(Sphere::new(Vector3d::new(0.0, -1001.0, 0.0), 1000.0)),
         ]
     };
 
