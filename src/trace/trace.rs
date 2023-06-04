@@ -48,8 +48,6 @@ impl Into<sdl2::pixels::Color> for Color {
 
 pub struct SceneInfo {
     pub sun_orientation: Vector3d<f64>,
-    pub verts: Vec<Vector3d<f64>>,
-    pub tris: Vec<(usize, usize, usize)>, //optimize by packing into smaller areas
     pub hittable_objects: Vec<Box<dyn HitObject>>
 }
 

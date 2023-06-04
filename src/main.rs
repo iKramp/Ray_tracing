@@ -65,8 +65,6 @@ pub fn main() {
     };
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(0.0, -1.0, 0.0),
-        verts: Vec::new(),
-        tris: Vec::new(),
         hittable_objects: vec![
             Box::new(Sphere::new(Vector3d::new(0.4, 0.4, 3.0), 0.5)),
             Box::new(Sphere::new(Vector3d::new(-0.4, 0.4, 5.0), 0.5)),
