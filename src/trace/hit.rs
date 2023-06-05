@@ -1,12 +1,15 @@
 extern crate vector3d;
 use super::trace::*;
 use vector3d::Vector3d;
+use super::material::*;
+use std::rc::Rc;
 
 pub struct HitRecord {
     pub pos: Vector3d<f64>,
-    pub normal: Vector3d<f64>,
+    pub normal: Vector3d<f64>,//points toward the ray
     pub t: f64,
-    pub front_face: bool,
+    pub front_face: bool,//is the ray and normal on the front of the face?
+    pub material: Box<Rc<dyn Material>>
 }
 
 impl HitRecord {
@@ -16,15 +19,17 @@ impl HitRecord {
             normal: Vector3d::new(0.0, 0.0, 0.0),
             t: f64::INFINITY,
             front_face: true,
+            material: Box::new(Rc::new(EmptyMaterial{}))
         }
     }
 
-    pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64, ray: &Ray) {
+    pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64, ray: &Ray, material: Box<Rc<dyn Material>>) {
         if t < self.t {
             self.t = t;
             self.pos = pos;
             self.front_face = ray.orientation.dot(normal) < 0.0;
             self.normal = if self.front_face { normal } else {-normal};
+            self.material = material;
         }
     }
 }
@@ -37,11 +42,12 @@ pub trait HitObject {
 pub struct Sphere {
     pub pos: Vector3d<f64>,
     pub radius: f64,
+    pub material: Box<Rc<dyn Material>>,
 }
 
 impl Sphere {
-    pub fn new(pos: Vector3d<f64>, radius: f64) -> Self {
-        Sphere { pos, radius }
+    pub fn new(pos: Vector3d<f64>, radius: f64, material: Box<Rc<dyn Material>>) -> Self {
+        Sphere { pos, radius, material }
     }
 }
 
@@ -59,14 +65,14 @@ impl HitObject for Sphere {
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root, ray);
+                record.try_add(hit, normal, root, ray, self.material.clone());
                 return true;
             }
             let root = (-half_b + discriminant.sqrt()) / a; //uncomment if you want to show sphere backfaces
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root, ray);
+                record.try_add(hit, normal, root, ray, self.material.clone());
                 return true;
             }
         }
