@@ -13,15 +13,16 @@ pub struct CamData {
     canvas_height: usize,
     fov: f64,
     transform: Ray,
+    samples: u32,
 }
 
-pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (usize, usize)) -> Ray {
+pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
     let fov_rad = data.fov / 180.0 * PI;
     let virt_canvas_height = (fov_rad / 2.0).tan();
 
-    let pix_offset_y = (-(pix_y as f64) / data.canvas_height as f64 + 0.5) * virt_canvas_height;
-    let pix_offset_x = (pix_x as f64 / data.canvas_height as f64 - 0.5) * virt_canvas_height;
+    let pix_offset_y = (-pix_y / data.canvas_height as f64 + 0.5) * virt_canvas_height;
+    let pix_offset_x = ( pix_x / data.canvas_height as f64 - 0.5) * virt_canvas_height;
 
     //println!("{},{}   ", pix_offset_x, pix_offset_y);
 
@@ -62,6 +63,7 @@ pub fn main() {
             pos: Vector3d::new(0.0, 0.0, 0.0),
             orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
+        samples: 1,
     };
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(0.0, -1.0, 0.0),
@@ -94,12 +96,19 @@ pub fn main() {
 
     for pix_y in 0..data.canvas_height {
         for pix_x in 0..data.canvas_width {
-            let mut vec = claculate_vec_dir_from_cam(&data, (pix_x, pix_y));
-            let color = vec.get_color(&scene_info);
-            canvas.set_draw_color(color);
-            let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
+            let mut color = Vector3d::new(0.0, 0.0, 0.0);
+            for i in 0..data.samples {
+                let mut vec = claculate_vec_dir_from_cam(&data, (pix_x as f64 + rng.gen_range(0.0..1.0), pix_y as f64 + rng.gen_range(0.0..1.0)));
+                color = color + vec.get_color(&scene_info);
+                let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
+            }
+            color = color / data.samples as f64;
+            color.x = color.x.clamp(0.0, 255.999);
+            color.y = color.y.clamp(0.0, 255.999);
+            color.z = color.z.clamp(0.0, 255.999);
+            canvas.set_draw_color(sdl2::pixels::Color::RGB(color.x as u8, color.y as u8, color.z as u8));
         }
-        println!("");
+        println!("{}/{}", pix_y, data.canvas_height);
     }
 
     canvas.present();
