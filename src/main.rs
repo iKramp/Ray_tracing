@@ -63,7 +63,7 @@ pub fn main() {
             pos: Vector3d::new(0.0, 0.0, 0.0),
             orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
-        samples: 1,
+        samples: 10,
     };
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(0.0, -1.0, 0.0),
@@ -109,6 +109,7 @@ pub fn main() {
             canvas.set_draw_color(sdl2::pixels::Color::RGB(color.x as u8, color.y as u8, color.z as u8));
         }
         println!("{}/{}", pix_y, data.canvas_height);
+        canvas.present();
     }
 
     canvas.present();
