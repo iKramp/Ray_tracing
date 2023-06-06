@@ -20,7 +20,7 @@ fn mult_colors(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> Vector3d<f64>{
     )
 }
 
-fn normalize_vec(vec: &mut Vector3d<f64>) {
+pub fn normalize_vec(vec: &mut Vector3d<f64>) {
     let len = vec.norm2().sqrt();
     vec.x /= len;
     vec.y /= len;
@@ -124,6 +124,7 @@ impl Material for BackgroundMaterial {
     }
 
     fn get_stop_color(&self, record: &HitRecord) -> Vector3d<f64> {
+        //return Vector3d::default();
         let mut temp = record.ray;
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
@@ -131,6 +132,24 @@ impl Material for BackgroundMaterial {
     }
 }
 
-pub struct TransparentMaterial {
-    ior: f64
+pub struct EmmissiveMaterial {
+    pub light_color: Vector3d<f64>
+}
+
+impl EmmissiveMaterial {
+    pub fn new(light_color: Vector3d<f64>) -> Self {
+        Self { light_color }
+    }
+}
+
+impl Material for EmmissiveMaterial {
+    fn get_next_ray_dir(&self, _record: &HitRecord, _rng: &mut ThreadRng) -> RayReturnState {
+        RayReturnState::Stop
+    }
+
+    fn get_stop_color(&self, record: &HitRecord) -> Vector3d<f64> {
+        let mut ray_reversed = record.ray.orientation * -1.0;
+        normalize_vec(&mut ray_reversed);
+        self.light_color/* * ray_reversed.dot(record.normal).sqrt()*/
+    }
 }

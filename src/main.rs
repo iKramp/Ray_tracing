@@ -63,35 +63,58 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) ->
 
 pub fn main() {
     let data = CamData {
-        canvas_width: 498,  //1280
-        canvas_height: 280, //720,
-        fov: 70.0,
+        canvas_width: 498,  //1280, 498
+        canvas_height: 280, //720, 280
+        fov: 30.0,
         transform: Ray {
-            pos: Vector3d::new(0.0, 0.2, -2.0),
+            pos: Vector3d::new(0.0, 0.5, -5.0),
             orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
-        samples: 30,
+        samples: 50,
     };
-    //let diffuse_white = std::rc::Rc::new(DiffuseMaterial::new(Vector3d::new(128.0, 128.0, 128.0)));
-    //let metal_dark = std::rc::Rc::new(MetalMaterial::new(Vector3d::new(20.0, 20.0, 20.0)));
-    //let diffuse_red = std::rc::Rc::new(DiffuseMaterial::new(Vector3d::new(245.0, 17.0, 43.0)));
 
-    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.0)));
-    let material_center = Rc::new(DiffuseMaterial::new(col_from_frac(0.7, 0.3, 0.3)));
+    /*nice scene with different materials
+    let material_ground = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.0), 0.0));
+    let material_center = Rc::new(EmmissiveMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
     let material_left = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.3));
     let material_right = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.6, 0.2), 1.0));
+    */
+
+    /*color box, dimensions 1x1x1, centered at 0,0.5,0
+    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.2, 1.0, 0.2)));
+    let material_diffuse = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
+    let material_metal = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.1));
+    let material_left = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 0.2, 0.2)));
+    let material_right = Rc::new(DiffuseMaterial::new(col_from_frac(0.2, 0.2, 1.0)));
+    */
+
+    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 1.0, 0.0)));
+    let material_diffuse = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
+    let material_metal = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.1));
+    let material_left = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 0.0, 0.0)));
+    let material_right = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 0.0, 1.0)));
+    let material_back_front = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
+    let material_top = Rc::new(EmmissiveMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
+
 
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
         hittable_objects: vec![
-            //Box::new(Sphere::new(Vector3d::new(0.0, -1.0, 5.0), 1.0, Box::new(diffuse_red.clone()))),
-            //Box::new(Sphere::new(Vector3d::new(1.0, -1.6, 4.0), 0.3, Box::new(metal_dark.clone()))),
-            //Box::new(Sphere::new(Vector3d::new(0.0, -1002.0, 0.0), 1000.0, Box::new(diffuse_white.clone()))),
-
+        /*nice sphere scene
         Box::new(Sphere::new(Vector3d::new( 0.0, -100.5, 1.0), 100.0, Box::new(material_ground))),
         Box::new(Sphere::new(Vector3d::new( 0.0,    0.0, 1.0),   0.5, Box::new(material_center))),
-        Box::new(Sphere::new(Vector3d::new(-1.0,    0.0, 1.0),   0.5, Box::new(material_left  ))),
-        Box::new(Sphere::new(Vector3d::new( 1.0,    0.0, 1.0),   0.5, Box::new(material_right ))),
+        Box::new(Sphere::new(Vector3d::new(-1.0,    0.0, 1.0),   0.5, Box::new(material_left))),
+        Box::new(Sphere::new(Vector3d::new( 1.0,    0.0, 1.0),   0.5, Box::new(material_right))),
+    */
+        Box::new(Sphere::new(Vector3d::new(0.0, -1000.0, 0.0), 1000.0, Box::new(material_ground))),
+        Box::new(Sphere::new(Vector3d::new(-1000.5, 0.0, 0.0), 1000.0, Box::new(material_left))),
+        Box::new(Sphere::new(Vector3d::new(1000.5, 0.0, 0.0), 1000.0, Box::new(material_right))),
+        Box::new(Sphere::new(Vector3d::new(0.0, 0.0, 1002.0), 1000.0, Box::new(material_back_front.clone()))),
+        Box::new(Sphere::new(Vector3d::new(0.0, 1001.0, 0.0), 1000.0, Box::new(material_top.clone()))),
+        Box::new(Sphere::new(Vector3d::new(0.0, 0.0, -1010.0), 1000.0, Box::new(material_back_front.clone()))),
+        Box::new(Sphere::new(Vector3d::new(-0.15, 0.65, 0.3), 0.3, Box::new(material_metal.clone()))),
+        Box::new(Sphere::new(Vector3d::new(0.15, 0.252, -1.0), 0.25, Box::new(material_diffuse.clone()))),
+
         ]
     };
 

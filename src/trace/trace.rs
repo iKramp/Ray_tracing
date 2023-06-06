@@ -38,12 +38,17 @@ impl Ray {
     }
 
     pub fn trace_ray(&mut self, scene_info: &SceneInfo, ray_depth: u32, rng: &mut rand::prelude::ThreadRng) -> Vector3d<f64> {
-        if ray_depth >= 10 { //child ray count limit
-            return Vector3d::new(0.0, 0.0, 0.0);
-        }
         self.normalize();
         let mut record = HitRecord::new();
         record.ray = *self;
+        record.normal = self.orientation;
+        normalize_vec(&mut record.normal);
+        if ray_depth >= 10 { //child ray count limit
+            return Vector3d::default();
+            return record.material.get_stop_color(&record)//return background color
+        }
+
+
         for object in &scene_info.hittable_objects {
             let _res = object.hit(self, (0.001, f64::MAX), &mut record);
         }
