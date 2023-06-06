@@ -1,12 +1,9 @@
-use sdl2;
-use std::ops;
 extern crate vector3d;
 
 use super::hit::*;
 use vector3d::Vector3d;
 use super::material::*;
 
-pub const PI: f64 = 3.14159265358979323846264338327950288419716939937510; //idk how many digits it can store but this many can't hurt
 
 pub fn vector_angle(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> f64 {
     let dot_product = lhs.dot(rhs);
@@ -46,33 +43,22 @@ impl Ray {
         }
         self.normalize();
         let mut record = HitRecord::new();
+        record.ray = *self;
         for object in &scene_info.hittable_objects {
             let _res = object.hit(self, (0.001, f64::MAX), &mut record);
         }
 
-        if record.t != f64::INFINITY {
-            let return_type = record.material.get_next_ray_dir(&record, &self.clone(), rng);
-            return match return_type {
-                RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
-                RayReturnState::Stop => {
-                    record.material.get_stop_color(&record)
-                }
-                RayReturnState::Ray(ray) => {
-                    let mut next_ray = Ray::new(record.pos, ray);
-                    let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng);
-                    return record.material.get_color(&record, next_color)
-                }
+        let return_type = record.material.get_next_ray_dir(&record, rng);
+        match return_type {
+            RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
+            RayReturnState::Stop => {
+                record.material.get_stop_color(&record)
             }
-
+            RayReturnState::Ray(ray) => {
+                let mut next_ray = Ray::new(record.pos, ray);
+                let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng);
+                record.material.get_color(&record, next_color)
+            }
         }
-
-        self.get_background_color()
-    }
-
-    fn get_background_color(&self) -> Vector3d<f64> {
-        let mut temp = self.clone();
-        temp.normalize();
-        let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
-        Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor) + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor
     }
 }

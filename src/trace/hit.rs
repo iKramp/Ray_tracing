@@ -6,6 +6,7 @@ use std::rc::Rc;
 
 pub struct HitRecord {
     pub pos: Vector3d<f64>,
+    pub ray: Ray,
     pub normal: Vector3d<f64>,//points toward the ray
     pub t: f64,
     pub front_face: bool,//is the ray and normal on the front of the face?
@@ -15,17 +16,19 @@ pub struct HitRecord {
 impl HitRecord {
     pub fn new() -> Self {
         HitRecord {
-            pos: Vector3d::new(0.0, 0.0, 0.0),
-            normal: Vector3d::new(0.0, 0.0, 0.0),
+            pos: Vector3d::default(),
+            ray: Ray::new(Vector3d::default(), Vector3d::default()),
+            normal: Vector3d::default(),
             t: f64::INFINITY,
             front_face: true,
-            material: Box::new(Rc::new(EmptyMaterial{}))
+            material: Box::new(Rc::new(BackgroundMaterial{}))
         }
     }
 
     pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64, ray: &Ray, material: Box<Rc<dyn Material>>) {
         if t < self.t {
             self.t = t;
+            self.ray = *ray;
             self.pos = pos;
             self.front_face = ray.orientation.dot(normal) < 0.0;
             self.normal = if self.front_face { normal } else {-normal};
