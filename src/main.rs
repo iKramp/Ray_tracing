@@ -79,6 +79,7 @@ pub fn main() {
     let material_center = Rc::new(DiffuseMaterial::new(col_from_frac(0.7, 0.3, 0.3)));
     let material_left = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.3));
     let material_right = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.6, 0.2), 1.0));
+    let norm_material = Rc::new(NormalMaterial{});
 
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
@@ -88,7 +89,7 @@ pub fn main() {
             //Box::new(Sphere::new(Vector3d::new(0.0, -1002.0, 0.0), 1000.0, Box::new(diffuse_white.clone()))),
 
         Box::new(Sphere::new(Vector3d::new( 0.0, -100.5, 1.0), 100.0, Box::new(material_ground.clone()))),
-        Box::new(Sphere::new(Vector3d::new( 0.0,    0.0, 1.0),   0.5, Box::new(material_center.clone()))),
+        Box::new(Sphere::new(Vector3d::new( 0.0,    0.0, 1.0),   0.5, Box::new(norm_material.clone()))),
         Box::new(Sphere::new(Vector3d::new(-1.0,    0.0, 1.0),   0.5, Box::new(material_left  .clone()))),
         Box::new(Sphere::new(Vector3d::new( 1.0,    0.0, 1.0),   0.5, Box::new(material_right .clone()))),
         ]
