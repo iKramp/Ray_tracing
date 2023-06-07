@@ -1,6 +1,6 @@
 pub mod hit;
-pub mod trace;
 pub mod material;
+pub mod trace;
 
-pub use trace::*;
 pub use material::*;
+pub use trace::*;

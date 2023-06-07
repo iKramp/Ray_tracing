@@ -3,12 +3,12 @@ extern crate sdl2;
 extern crate vector3d;
 pub mod trace;
 
+use core::f64::consts::PI;
 use hit::*;
 use rand::prelude::*;
+use std::rc::Rc;
 use trace::*;
 use vector3d::Vector3d;
-use std::rc::Rc;
-use core::f64::consts::PI;
 
 fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d<f64> {
     Vector3d::new(r * 255.0, g * 255.0, b * 255.0)
@@ -22,14 +22,15 @@ pub struct CamData {
     samples: u32,
 }
 
-
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
     let fov_rad = data.fov / 180.0 * PI;
     let virt_canvas_height = (fov_rad / 2.0).tan();
 
     let pix_offset_y = (-pix_y / data.canvas_height as f64 + 0.5) * virt_canvas_height;
-    let pix_offset_x = ( pix_x / data.canvas_height as f64 - 0.5 * (data.canvas_width as f64 / data.canvas_height as f64)) * virt_canvas_height;
+    let pix_offset_x = (pix_x / data.canvas_height as f64
+        - 0.5 * (data.canvas_width as f64 / data.canvas_height as f64))
+        * virt_canvas_height;
 
     //println!("{},{}   ", pix_offset_x, pix_offset_y);
 
@@ -68,7 +69,7 @@ pub fn main() {
         fov: 30.0,
         transform: Ray {
             pos: Vector3d::new(0.0, 0.5, -5.0),
-            orientation: Vector3d::new(0.0, 0.0, 1.0),
+            orientation: Vector3d::new(0.0, -0.1, 1.0),
         },
         samples: 50,
     };
@@ -88,34 +89,46 @@ pub fn main() {
     let material_right = Rc::new(DiffuseMaterial::new(col_from_frac(0.2, 0.2, 1.0)));
     */
 
-    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 1.0, 0.0)));
-    let material_diffuse = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
-    let material_metal = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.1));
-    let material_left = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 0.0, 0.0)));
-    let material_right = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 0.0, 1.0)));
-    let material_back_front = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
-    let material_top = Rc::new(EmmissiveMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
-
+    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
+    let material_center = Rc::new(EmmissiveMaterial::new(col_from_frac(1.0, 1.0, 1.0)));
+    let material_left = Rc::new(RefractiveMaterial::new(col_from_frac(1.0, 1.0, 1.0), 1.5));
+    let material_right = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.6, 0.2), 1.0));
 
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
         hittable_objects: vec![
-        /*nice sphere scene
-        Box::new(Sphere::new(Vector3d::new( 0.0, -100.5, 1.0), 100.0, Box::new(material_ground))),
-        Box::new(Sphere::new(Vector3d::new( 0.0,    0.0, 1.0),   0.5, Box::new(material_center))),
-        Box::new(Sphere::new(Vector3d::new(-1.0,    0.0, 1.0),   0.5, Box::new(material_left))),
-        Box::new(Sphere::new(Vector3d::new( 1.0,    0.0, 1.0),   0.5, Box::new(material_right))),
-    */
-        Box::new(Sphere::new(Vector3d::new(0.0, -1000.0, 0.0), 1000.0, Box::new(material_ground))),
-        Box::new(Sphere::new(Vector3d::new(-1000.5, 0.0, 0.0), 1000.0, Box::new(material_left))),
-        Box::new(Sphere::new(Vector3d::new(1000.5, 0.0, 0.0), 1000.0, Box::new(material_right))),
-        Box::new(Sphere::new(Vector3d::new(0.0, 0.0, 1002.0), 1000.0, Box::new(material_back_front.clone()))),
-        Box::new(Sphere::new(Vector3d::new(0.0, 1001.0, 0.0), 1000.0, Box::new(material_top.clone()))),
-        Box::new(Sphere::new(Vector3d::new(0.0, 0.0, -1010.0), 1000.0, Box::new(material_back_front.clone()))),
-        Box::new(Sphere::new(Vector3d::new(-0.15, 0.65, 0.3), 0.3, Box::new(material_metal.clone()))),
-        Box::new(Sphere::new(Vector3d::new(0.15, 0.252, -1.0), 0.25, Box::new(material_diffuse.clone()))),
-
-        ]
+            /*nice sphere scene
+                Box::new(Sphere::new(Vector3d::new( 0.0, -100.5, 1.0), 100.0, Box::new(material_ground))),
+                Box::new(Sphere::new(Vector3d::new( 0.0,    0.0, 1.0),   0.5, Box::new(material_center))),
+                Box::new(Sphere::new(Vector3d::new(-1.0,    0.0, 1.0),   0.5, Box::new(material_left))),
+                Box::new(Sphere::new(Vector3d::new( 1.0,    0.0, 1.0),   0.5, Box::new(material_right))),
+            */
+            Box::new(Sphere::new(
+                Vector3d::new(0.0, -100.5, 1.0),
+                100.0,
+                Box::new(material_ground),
+            )),
+            Box::new(Sphere::new(
+                Vector3d::new(0.0, 0.0, 1.0),
+                0.5,
+                Box::new(material_center),
+            )),
+            Box::new(Sphere::new(
+                Vector3d::new(-1.0, 0.0, 1.0),
+                0.5,
+                Box::new(material_left.clone()),
+            )),
+            Box::new(Sphere::new(
+                Vector3d::new(-1.0, 0.0, 1.0),
+                    -0.45,
+                    Box::new(material_left),
+            )),
+            Box::new(Sphere::new(
+                Vector3d::new(1.0, 0.0, 1.0),
+                0.5,
+                Box::new(material_right),
+            )),
+        ],
     };
 
     let sdl_context = sdl2::init().unwrap();
@@ -140,7 +153,13 @@ pub fn main() {
         for pix_x in 0..data.canvas_width {
             let mut color = Vector3d::new(0.0, 0.0, 0.0);
             for _i in 0..data.samples {
-                let mut vec = claculate_vec_dir_from_cam(&data, (pix_x as f64 + rng.gen_range(0.0..1.0), pix_y as f64 + rng.gen_range(0.0..1.0)));
+                let mut vec = claculate_vec_dir_from_cam(
+                    &data,
+                    (
+                        pix_x as f64 + rng.gen_range(0.0..1.0),
+                        pix_y as f64 + rng.gen_range(0.0..1.0),
+                    ),
+                );
                 color = color + vec.trace_ray(&scene_info, 0, &mut rng);
                 let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
             }
@@ -149,12 +168,18 @@ pub fn main() {
             color.y = color.y.sqrt().clamp(0.0, 0.999999999);
             color.z = color.z.sqrt().clamp(0.0, 0.999999999);
             color = color * 256.0;
-            canvas.set_draw_color(sdl2::pixels::Color::RGB(color.x as u8, color.y as u8, color.z as u8));
+            canvas.set_draw_color(sdl2::pixels::Color::RGB(
+                color.x as u8,
+                color.y as u8,
+                color.z as u8,
+            ));
         }
         //println!("{}/{}", pix_y, data.canvas_height);
         canvas.present();
         for event in event_pump.poll_iter() {
-            if let sdl2::event::Event::Quit { .. } = event { return; }
+            if let sdl2::event::Event::Quit { .. } = event {
+                return;
+            }
         }
     }
 
@@ -162,7 +187,9 @@ pub fn main() {
 
     loop {
         for event in event_pump.poll_iter() {
-            if let sdl2::event::Event::Quit { .. } = event { return; }
+            if let sdl2::event::Event::Quit { .. } = event {
+                return;
+            }
         }
 
         /*canvas.set_draw_color(sdl2::pixels::Color::RGB(rng.gen(), rng.gen(), rng.gen()));

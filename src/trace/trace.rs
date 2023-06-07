@@ -1,9 +1,8 @@
 extern crate vector3d;
 
 use super::hit::*;
-use vector3d::Vector3d;
 use super::material::*;
-
+use vector3d::Vector3d;
 
 pub fn vector_angle(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> f64 {
     let dot_product = lhs.dot(rhs);
@@ -13,7 +12,7 @@ pub fn vector_angle(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> f64 {
 
 pub struct SceneInfo {
     pub sun_orientation: Vector3d<f64>,
-    pub hittable_objects: Vec<Box<dyn HitObject>>
+    pub hittable_objects: Vec<Box<dyn HitObject>>,
 }
 
 #[derive(Clone, Copy)]
@@ -28,8 +27,7 @@ impl Ray {
     }
 
     fn len(&self) -> f64 {
-        self.orientation.dot(self.orientation)
-            .sqrt()
+        self.orientation.dot(self.orientation).sqrt()
     }
 
     pub fn normalize(&mut self) {
@@ -37,28 +35,33 @@ impl Ray {
         self.orientation = self.orientation / len;
     }
 
-    pub fn trace_ray(&mut self, scene_info: &SceneInfo, ray_depth: u32, rng: &mut rand::prelude::ThreadRng) -> Vector3d<f64> {
+    pub fn trace_ray(
+        &mut self,
+        scene_info: &SceneInfo,
+        ray_depth: u32,
+        rng: &mut rand::prelude::ThreadRng,
+    ) -> Vector3d<f64> {
         self.normalize();
         let mut record = HitRecord::new();
         record.ray = *self;
         record.normal = self.orientation;
         normalize_vec(&mut record.normal);
-        if ray_depth >= 10 { //child ray count limit
-            return Vector3d::default();
-            return record.material.get_stop_color(&record)//return background color
+        if ray_depth >= 20 {
+            //child ray count limit
+            //return Vector3d::default();
+            return record.material.get_stop_color(&record); //return background color
         }
-
 
         for object in &scene_info.hittable_objects {
             let _res = object.hit(self, (0.001, f64::MAX), &mut record);
         }
 
+        record.ray.normalize();
+        normalize_vec(&mut record.normal);
         let return_type = record.material.get_next_ray_dir(&record, rng);
         match return_type {
             RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
-            RayReturnState::Stop => {
-                record.material.get_stop_color(&record)
-            }
+            RayReturnState::Stop => record.material.get_stop_color(&record),
             RayReturnState::Ray(ray) => {
                 let mut next_ray = Ray::new(record.pos, ray);
                 let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng);

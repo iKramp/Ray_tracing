@@ -1,16 +1,16 @@
 extern crate vector3d;
-use super::trace::*;
-use vector3d::Vector3d;
 use super::material::*;
+use super::trace::*;
 use std::rc::Rc;
+use vector3d::Vector3d;
 
 pub struct HitRecord {
     pub pos: Vector3d<f64>,
     pub ray: Ray,
-    pub normal: Vector3d<f64>,//points toward the ray
+    pub normal: Vector3d<f64>, //points toward the ray
     pub t: f64,
-    pub front_face: bool,//is the ray and normal on the front of the face?
-    pub material: Box<Rc<dyn Material>>
+    pub front_face: bool, //is the ray and normal on the front of the face?
+    pub material: Box<Rc<dyn Material>>,
 }
 
 impl HitRecord {
@@ -21,17 +21,24 @@ impl HitRecord {
             normal: Vector3d::default(),
             t: f64::INFINITY,
             front_face: true,
-            material: Box::new(Rc::new(BackgroundMaterial{}))
+            material: Box::new(Rc::new(BackgroundMaterial {})),
         }
     }
 
-    pub fn try_add(&mut self, pos: Vector3d<f64>, normal: Vector3d<f64>, t: f64, ray: &Ray, material: Box<Rc<dyn Material>>) {
+    pub fn try_add(
+        &mut self,
+        pos: Vector3d<f64>,
+        normal: Vector3d<f64>,
+        t: f64,
+        ray: &Ray,
+        material: Box<Rc<dyn Material>>,
+    ) {
         if t < self.t {
             self.t = t;
             self.ray = *ray;
             self.pos = pos;
             self.front_face = ray.orientation.dot(normal) < 0.0;
-            self.normal = if self.front_face { normal } else {-normal};
+            self.normal = if self.front_face { normal } else { -normal };
             self.material = material;
         }
     }
@@ -50,7 +57,11 @@ pub struct Sphere {
 
 impl Sphere {
     pub fn new(pos: Vector3d<f64>, radius: f64, material: Box<Rc<dyn Material>>) -> Self {
-        Sphere { pos, radius, material }
+        Sphere {
+            pos,
+            radius,
+            material,
+        }
     }
 }
 
