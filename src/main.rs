@@ -1,13 +1,12 @@
 extern crate rand;
 extern crate sdl2;
 extern crate vector3d;
-pub mod trace;
+pub mod ray;
 
 use core::f64::consts::PI;
-use hit::*;
 use rand::prelude::*;
+use ray::{hit::*, material::*, trace::*};
 use std::rc::Rc;
-use trace::*;
 use vector3d::Vector3d;
 
 fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d<f64> {
@@ -52,7 +51,7 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) ->
     yaw += offset_yaw;
     pitch += offset_pitch;
 
-    trace::Ray::new(
+    Ray::new(
         data.transform.pos,
         Vector3d::new(
             yaw.sin() * pitch.cos(),
@@ -120,8 +119,8 @@ pub fn main() {
             )),
             Box::new(Sphere::new(
                 Vector3d::new(-1.0, 0.0, 1.0),
-                    -0.45,
-                    Box::new(material_left),
+                -0.45,
+                Box::new(material_left),
             )),
             Box::new(Sphere::new(
                 Vector3d::new(1.0, 0.0, 1.0),

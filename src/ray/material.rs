@@ -24,7 +24,7 @@ pub fn normalize_vec(vec: &mut Vector3d<f64>) -> Vector3d<f64> {
     vec.x /= len;
     vec.y /= len;
     vec.z /= len;
-    vec.clone()
+    *vec
 }
 
 fn rand_vec_in_unit_sphere(rng: &mut ThreadRng) -> Vector3d<f64> {
@@ -156,12 +156,13 @@ impl Material for EmmissiveMaterial {
     }
 
     fn get_stop_color(&self, record: &HitRecord) -> Vector3d<f64> {
-        let mut ray_reversed = -record.ray.orientation;
+        let _ray_reversed = -record.ray.orientation;
         self.light_color /* * ray_reversed.dot(record.normal).sqrt()*/
     }
 }
 
-pub struct RefractiveMaterial {//TODO: ior not working properly
+pub struct RefractiveMaterial {
+    //TODO: ior not working properly
     color: Vector3d<f64>,
     ior: f64,
 }
@@ -175,28 +176,25 @@ impl RefractiveMaterial {
         //using schlick's approximation
         let mut r0 = (1.0 - self.ior) / (1.0 + self.ior);
         r0 *= r0;
-        let cos_theta = record
-            .normal
-            .dot(-record.ray.clone().orientation);
+        let cos_theta = record.normal.dot(-record.ray.orientation);
         r0 + (1.0 - r0) * (1.0 - cos_theta).powi(5)
     }
 
     pub fn reflect(&self, record: &HitRecord) -> Vector3d<f64> {
         //println!("reflect");
         let old_ray = record.ray.orientation;
-        let new_ray = old_ray - record.normal * old_ray.dot(record.normal) * 2.0;
-        new_ray
+
+        old_ray - record.normal * old_ray.dot(record.normal) * 2.0
     }
 
-    pub fn refract(&self, record: &HitRecord) -> Vector3d<f64> {//could do without refraction ratio but it's pointelss to recalculate
+    pub fn refract(&self, record: &HitRecord) -> Vector3d<f64> {
+        //could do without refraction ratio but it's pointelss to recalculate
         let refraction_ratio = if record.front_face {
-        1.0 / self.ior
-    } else {
-        self.ior
-    };
-        let cos_theta = record
-                .normal
-                .dot(-record.ray.clone().orientation);
+            1.0 / self.ior
+        } else {
+            self.ior
+        };
+        let cos_theta = record.normal.dot(-record.ray.orientation);
         let r1 = (record.ray.orientation + record.normal * cos_theta) * refraction_ratio;
         let r2 = -record.normal * (1.0 - r1.norm2()).sqrt();
         r1 + r2
@@ -210,16 +208,14 @@ impl Material for RefractiveMaterial {
         } else {
             self.ior
         };
-        let cos_theta = record
-                .normal
-                .dot(-record.ray.clone().orientation);
+        let cos_theta = record.normal.dot(-record.ray.orientation);
         let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
         let reflectance = self.reflectance(record);
-        return if refraction_ratio * sin_theta > 1.0 || reflectance > rng.gen_range(0.0..1.0) {
+        if refraction_ratio * sin_theta > 1.0 || reflectance > rng.gen_range(0.0..1.0) {
             RayReturnState::Ray(self.reflect(record))
         } else {
             RayReturnState::Ray(self.refract(record))
-        };
+        }
     }
 
     fn get_color(&self, _record: &HitRecord, next_ray_color: Vector3d<f64>) -> Vector3d<f64> {

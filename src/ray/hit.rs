@@ -13,6 +13,7 @@ pub struct HitRecord {
     pub material: Box<Rc<dyn Material>>,
 }
 
+#[allow(clippy::new_without_default)]
 impl HitRecord {
     pub fn new() -> Self {
         HitRecord {
