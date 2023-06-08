@@ -2,6 +2,7 @@ extern crate vector3d;
 
 use super::hit::*;
 use super::material::*;
+use crate::Resources;
 use vector3d::Vector3d;
 
 pub fn vector_angle(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> f64 {
@@ -40,16 +41,17 @@ impl Ray {
         scene_info: &SceneInfo,
         ray_depth: u32,
         rng: &mut rand::prelude::ThreadRng,
+        resources: std::rc::Rc<Resources>,
     ) -> Vector3d<f64> {
         self.normalize();
-        let mut record = HitRecord::new();
+        let mut record = HitRecord::new(resources.clone());
         record.ray = *self;
         record.normal = self.orientation;
         normalize_vec(&mut record.normal);
-        if ray_depth >= 20 {
+        if ray_depth >= 5 {
             //child ray count limit
-            //return Vector3d::default();
-            return record.material.get_stop_color(&record); //return background color
+            return Vector3d::default();
+            //return record.material.get_stop_color(&record); //return background color
         }
 
         for object in &scene_info.hittable_objects {
@@ -64,7 +66,7 @@ impl Ray {
             RayReturnState::Stop => record.material.get_stop_color(&record),
             RayReturnState::Ray(ray) => {
                 let mut next_ray = Ray::new(record.pos, ray);
-                let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng);
+                let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng, resources);
                 record.material.get_color(&record, next_color)
             }
         }

@@ -1,6 +1,7 @@
 extern crate vector3d;
 use super::material::*;
 use super::trace::*;
+use crate::Resources;
 use std::rc::Rc;
 use vector3d::Vector3d;
 
@@ -11,11 +12,13 @@ pub struct HitRecord {
     pub t: f64,
     pub front_face: bool, //is the ray and normal on the front of the face?
     pub material: Box<Rc<dyn Material>>,
+    pub uv: (f64, f64),
+    pub resources: Rc<Resources>,
 }
 
 #[allow(clippy::new_without_default)]
 impl HitRecord {
-    pub fn new() -> Self {
+    pub fn new(resources: Rc<Resources>) -> Self {
         HitRecord {
             pos: Vector3d::default(),
             ray: Ray::new(Vector3d::default(), Vector3d::default()),
@@ -23,6 +26,8 @@ impl HitRecord {
             t: f64::INFINITY,
             front_face: true,
             material: Box::new(Rc::new(BackgroundMaterial {})),
+            uv: (0.0, 0.0),
+            resources,
         }
     }
 
@@ -33,6 +38,7 @@ impl HitRecord {
         t: f64,
         ray: &Ray,
         material: Box<Rc<dyn Material>>,
+        uv: (f64, f64),
     ) {
         if t < self.t {
             self.t = t;
@@ -41,6 +47,7 @@ impl HitRecord {
             self.front_face = ray.orientation.dot(normal) < 0.0;
             self.normal = if self.front_face { normal } else { -normal };
             self.material = material;
+            self.uv = uv;
         }
     }
 }
@@ -64,6 +71,14 @@ impl Sphere {
             material,
         }
     }
+
+    fn get_uv(&self, normal: Vector3d<f64>) -> (f64, f64) {
+        let angle_y = (-normal).y.asin() / core::f64::consts::PI + 0.5;
+        let mut angle_xz = ((normal).x.atan2((-normal).z) / core::f64::consts::PI + 1.0) / 2.0;
+        angle_xz += 1.0;
+        angle_xz %= 1.0;
+        (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
+    }
 }
 
 impl HitObject for Sphere {
@@ -80,14 +95,28 @@ impl HitObject for Sphere {
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root, ray, self.material.clone());
+                record.try_add(
+                    hit,
+                    normal,
+                    root,
+                    ray,
+                    self.material.clone(),
+                    self.get_uv(normal),
+                );
                 return true;
             }
-            let root = (-half_b + discriminant.sqrt()) / a; //uncomment if you want to show sphere backfaces
+            let root = (-half_b + discriminant.sqrt()) / a;
             if root > t_clamp.0 && root < t_clamp.1 {
                 let hit = ray.pos + ray.orientation * root;
                 let normal = self.calculate_normal(hit);
-                record.try_add(hit, normal, root, ray, self.material.clone());
+                record.try_add(
+                    hit,
+                    normal,
+                    root,
+                    ray,
+                    self.material.clone(),
+                    self.get_uv(normal),
+                );
                 return true;
             }
         }
@@ -98,3 +127,114 @@ impl HitObject for Sphere {
         (hit - self.pos) / self.radius
     }
 }
+
+pub struct Vertex {
+    pub(crate) pos: Vector3d<f64>,
+    uv: (f64, f64)
+}
+
+impl Vertex {
+    pub fn new(pos: Vector3d<f64>, uv: (f64, f64)) -> Self {
+        Vertex {
+            pos,
+            uv
+        }
+    }
+}
+
+impl Default for Vertex {
+    fn default() -> Self {
+        Vertex {
+            pos: Vector3d::default(),
+            uv: (0.0, 0.0)
+        }
+    }
+}
+
+pub struct Mesh {
+    verts: Vec<Vertex>,
+    tris: Vec<(usize, usize, usize)>,
+    material:Box<Rc<dyn Material>>
+}
+
+impl Mesh {
+    pub fn new(verts: Vec<Vertex>, tris: Vec<(usize, usize, usize)>, material: Box<Rc<dyn Material>>) -> Self {
+        Mesh {
+            verts,
+            tris,
+            material
+        }
+    }
+}
+
+fn triangle_ray_intersect(p0: Vector3d<f64>, p1: Vector3d<f64>, p2: Vector3d<f64>, ray: &Ray, t_clamp: (f64, f64)) -> Option<f64> {
+    let A = p1 - p0;
+    let B = p2 - p0;
+    let normal = normalize_vec(&mut A.cross(B));
+    let D = -(normal.dot(p0));
+    if normal.dot(ray.orientation).abs() < f64::EPSILON {
+        return None;
+    }
+    let t = -(normal.dot(ray.pos) + D) / normal.dot(ray.orientation);
+    if t < t_clamp.0 || t > t_clamp.1 {
+        return None;
+    }
+    let hit = ray.pos + ray.orientation * t;
+    let mut C;
+
+    let edge0 = p1 - p0;
+    let vp0 = hit - p0;
+    C = edge0.cross(vp0);
+    if normal.dot(C) < 0.0 {
+        return None;
+    }
+
+    let edge1 = p2 - p1;
+    let vp1 = hit - p1;
+    C = edge1.cross(vp1);
+    if normal.dot(C) < 0.0 {
+        return None;
+    }
+
+    let edge2 = p0 - p2;
+    let vp2 = hit - p2;
+    C = edge2.cross(vp2);
+    if normal.dot(C) < 0.0 {
+        return None;
+    }
+
+
+    Some(t)
+}
+
+impl HitObject for Mesh {
+    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) -> bool {
+        let mut hit = false;
+        for triangle in &self.tris {
+            let vert = Vertex::default();
+            let p0 = self.verts.get(triangle.0).unwrap_or(&vert);
+            let p1 = self.verts.get(triangle.1).unwrap_or(&vert);
+            let p2 = self.verts.get(triangle.2).unwrap_or(&vert);
+            if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
+                let A = p1.pos - p0.pos;
+                let B = p2.pos - p0.pos;
+                let normal = normalize_vec(&mut A.cross(B));
+                record.try_add(
+                    ray.pos + ray.orientation * t,
+                    normal,
+                    t,
+                    ray,
+                    self.material.clone(),
+                    (0.0, 0.0)
+                );
+                hit = true;
+            }
+        }
+        hit
+    }
+
+    fn calculate_normal(&self, _hit: Vector3d<f64>) -> Vector3d<f64> {
+        Vector3d::default()//unused
+    }
+}
+
