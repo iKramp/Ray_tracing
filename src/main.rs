@@ -10,6 +10,11 @@ use ray::{hit::*, material::*, trace::*};
 use std::rc::Rc;
 use vector3d::Vector3d;
 
+
+const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
+
+
+
 fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d<f64> {
     Vector3d::new(r * 255.0, g * 255.0, b * 255.0)
 }
@@ -67,7 +72,7 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) ->
 }
 
 fn parse_obj_file(path: &str, scale: f64, transform: Vector3d<f64>) -> Box<dyn HitObject> {
-    let mut objects: Vec<Box<dyn HitObject>> = Vec::new();
+    let _objects: Vec<Box<dyn HitObject>> = Vec::new();
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut faces: Vec<(usize, usize, usize)> = Vec::new();
 
@@ -95,7 +100,7 @@ fn parse_obj_file(path: &str, scale: f64, transform: Vector3d<f64>) -> Box<dyn H
           Mesh::new(
               vertices,
               faces,
-              Box::new(Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.0))),
+              Box::new(Rc::new(NormalMaterial{})),
           )
     )
 }
@@ -109,14 +114,14 @@ pub fn main() {
             pos: Vector3d::new(0.0, 0.5, -5.0),
             orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
-        samples: 5,
+        samples: 1,
     };
 
     let resources;
     let image = image::open("src/resources/earth_4.jpg");
     match image {
         Err(e) => {
-            println!("{}", e.to_string());
+            println!("{}", e);
             panic!()
         },
         Ok(image) => {
@@ -126,7 +131,7 @@ pub fn main() {
         }
     }
     //default materials
-    let normal_material = Rc::new(NormalMaterial{});
+    let _normal_material = Rc::new(NormalMaterial{});
 
 
     /*nice scene with different materials
@@ -137,8 +142,8 @@ pub fn main() {
     */
 
     //color box, dimensions 1x1x1, centered at 0,0.5,0
-    let material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 1.0, 0.0)));
-    let material_diffuse = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
+    let _material_ground = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 1.0, 0.0)));
+    let _material_diffuse = Rc::new(DiffuseMaterial::new(col_from_frac(0.8, 0.8, 0.8)));
     let material_metal = Rc::new(MetalMaterial::new(col_from_frac(0.8, 0.8, 0.8), 0.05));
     let material_left = Rc::new(DiffuseMaterial::new(col_from_frac(1.0, 0.0, 0.0)));
     let material_right = Rc::new(DiffuseMaterial::new(col_from_frac(0.0, 0.0, 1.0)));
@@ -155,13 +160,13 @@ pub fn main() {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
         hittable_objects: //parse_obj_file("src/resources/teapot.obj", 1.0, Vector3d::default()),
         vec![
-            parse_obj_file("src/resources/teapot.obj", 0.125, Vector3d::new(-0.05, 0.1, 0.0)),
-            Box::new(Sphere::new(Vector3d::new(0.0, -1000.0, 0.0), 1000.0, Box::new(material_metal))),
+            parse_obj_file("src/resources/teapot.obj", 0.25, Vector3d::new(-0.05, 0.25, 0.0)),
+            /*Box::new(Sphere::new(Vector3d::new(0.0, -1000.0, 0.0), 1000.0, Box::new(material_metal))),
             Box::new(Sphere::new(Vector3d::new(-1000.5, 0.0, 0.0), 1000.0, Box::new(material_left))),
             Box::new(Sphere::new(Vector3d::new(1000.5, 0.0, 0.0), 1000.0, Box::new(material_right))),
             Box::new(Sphere::new(Vector3d::new(0.0, 0.0, 1002.0), 1000.0, Box::new(material_back_front.clone()))),
-            Box::new(Sphere::new(Vector3d::new(0.0, 1001.0, 0.0), 1000.0, Box::new(material_top.clone()))),
-            Box::new(Sphere::new(Vector3d::new(0.0, 0.0, -1010.0), 1000.0, Box::new(material_back_front.clone()))),
+            Box::new(Sphere::new(Vector3d::new(0.0, 1001.0, 0.0), 1000.0, Box::new(material_top))),
+            Box::new(Sphere::new(Vector3d::new(0.0, 0.0, -1010.0), 1000.0, Box::new(material_back_front))),*/
             //Box::new(Sphere::new(Vector3d::new(0.0, 1.9, 0.0), 1.0, Box::new(material_back_front.clone()))),
         ]
     };

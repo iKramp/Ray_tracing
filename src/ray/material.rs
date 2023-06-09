@@ -248,7 +248,7 @@ impl Material for UVMaterial {
         let pixel = image.get_pixel(uv.0 as u32, uv.1 as u32);
 
         let color = Vector3d::new(
-            *pixel.0.get(0).unwrap() as f64,
+            *pixel.0.first().unwrap() as f64,
             *pixel.0.get(1).unwrap() as f64,
             *pixel.0.get(2).unwrap() as f64,
         );

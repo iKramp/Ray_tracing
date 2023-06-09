@@ -19,3 +19,16 @@ sdl2-sys = { version = "=0.35.2", features = ["bundled", "static-link"] }
 [target.'cfg(unix)'.dependencies]
 sdl2 = { version = "=0.35.2", features = ["use-pkgconfig", "static-link"] }
 sdl2-sys = { version = "=0.35.2", features = ["use-pkgconfig", "static-link"] }
+
+[build-dependencies]
+shader = {path = "./shader"}
+spirv-builder = "0.8.0"
+
+
+# Compile build-dependencies in release mode with
+# the same settings as regular dependencies.
+[profile.release.build-override]
+opt-level = 3
+codegen-units = 16
+[profile.dev.build-override]
+opt-level = 3

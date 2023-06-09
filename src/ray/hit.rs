@@ -168,38 +168,38 @@ impl Mesh {
 }
 
 fn triangle_ray_intersect(p0: Vector3d<f64>, p1: Vector3d<f64>, p2: Vector3d<f64>, ray: &Ray, t_clamp: (f64, f64)) -> Option<f64> {
-    let A = p1 - p0;
-    let B = p2 - p0;
-    let normal = normalize_vec(&mut A.cross(B));
-    let D = -(normal.dot(p0));
+    let a = p1 - p0;
+    let b = p2 - p0;
+    let normal = normalize_vec(&mut a.cross(b));
+    let d = -(normal.dot(p0));
     if normal.dot(ray.orientation).abs() < f64::EPSILON {
         return None;
     }
-    let t = -(normal.dot(ray.pos) + D) / normal.dot(ray.orientation);
+    let t = -(normal.dot(ray.pos) + d) / normal.dot(ray.orientation);
     if t < t_clamp.0 || t > t_clamp.1 {
         return None;
     }
     let hit = ray.pos + ray.orientation * t;
-    let mut C;
+    let mut c;
 
     let edge0 = p1 - p0;
     let vp0 = hit - p0;
-    C = edge0.cross(vp0);
-    if normal.dot(C) < 0.0 {
+    c = edge0.cross(vp0);
+    if normal.dot(c) < 0.0 {
         return None;
     }
 
     let edge1 = p2 - p1;
     let vp1 = hit - p1;
-    C = edge1.cross(vp1);
-    if normal.dot(C) < 0.0 {
+    c = edge1.cross(vp1);
+    if normal.dot(c) < 0.0 {
         return None;
     }
 
     let edge2 = p0 - p2;
     let vp2 = hit - p2;
-    C = edge2.cross(vp2);
-    if normal.dot(C) < 0.0 {
+    c = edge2.cross(vp2);
+    if normal.dot(c) < 0.0 {
         return None;
     }
 
@@ -216,9 +216,9 @@ impl HitObject for Mesh {
             let p1 = self.verts.get(triangle.1).unwrap_or(&vert);
             let p2 = self.verts.get(triangle.2).unwrap_or(&vert);
             if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
-                let A = p1.pos - p0.pos;
-                let B = p2.pos - p0.pos;
-                let normal = normalize_vec(&mut A.cross(B));
+                let a = p1.pos - p0.pos;
+                let b = p2.pos - p0.pos;
+                let normal = normalize_vec(&mut a.cross(b));
                 record.try_add(
                     ray.pos + ray.orientation * t,
                     normal,
