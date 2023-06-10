@@ -7,7 +7,7 @@ use vector3d::Vector3d;
 
 pub fn vector_angle(lhs: Vector3d<f64>, rhs: Vector3d<f64>) -> f64 {
     let dot_product = lhs.dot(rhs);
-    let len_product = lhs.dot(lhs).sqrt() * rhs.dot(rhs).sqrt();
+    let len_product = lhs.norm2().sqrt() * rhs.norm2().sqrt();
     (dot_product / len_product).acos()
 }
 
@@ -28,12 +28,11 @@ impl Ray {
     }
 
     fn len(&self) -> f64 {
-        self.orientation.dot(self.orientation).sqrt()
+        self.orientation.norm2().sqrt()
     }
 
     pub fn normalize(&mut self) {
-        let len = self.len();
-        self.orientation = self.orientation / len;
+        self.orientation = self.orientation / self.len();
     }
 
     pub fn trace_ray(
@@ -48,14 +47,14 @@ impl Ray {
         record.ray = *self;
         record.normal = self.orientation;
         normalize_vec(&mut record.normal);
-        if ray_depth >= 1 {
+        if ray_depth == 0 {
             //child ray count limit
             return Vector3d::default();
             //return record.material.get_stop_color(&record); //return background color
         }
 
         for object in &scene_info.hittable_objects {
-            let _res = object.hit(self, (0.001, f64::MAX), &mut record);
+            object.hit(self, (0.001, f64::MAX), &mut record);
         }
 
         record.ray.normalize();
@@ -66,7 +65,7 @@ impl Ray {
             RayReturnState::Stop => record.material.get_stop_color(&record),
             RayReturnState::Ray(ray) => {
                 let mut next_ray = Ray::new(record.pos, ray);
-                let next_color = next_ray.trace_ray(scene_info, ray_depth + 1, rng, resources);
+                let next_color = next_ray.trace_ray(scene_info, ray_depth - 1, rng, resources);
                 record.material.get_color(&record, next_color)
             }
         }
