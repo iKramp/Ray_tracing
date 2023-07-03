@@ -53,7 +53,7 @@ impl HitRecord {
 }
 
 pub trait HitObject {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) -> bool;
+    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord);
     fn calculate_normal(&self, hit: Vector3d<f64>) -> Vector3d<f64>;
 }
 
@@ -79,10 +79,33 @@ impl Sphere {
         angle_xz %= 1.0;
         (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
     }
+
+    fn try_add_to_record(
+        &self,
+        ray: &Ray,
+        t: f64,
+        record: &mut HitRecord,
+        t_clamp: (f64, f64),
+    ) -> bool {
+        if t < t_clamp.1 && t > t_clamp.0 {
+            let hit = ray.pos + ray.orientation * t;
+            let normal = self.calculate_normal(hit);
+            record.try_add(
+                hit,
+                normal,
+                t,
+                ray,
+                self.material.clone(),
+                self.get_uv(normal),
+            );
+            return true;
+        }
+        false
+    }
 }
 
 impl HitObject for Sphere {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) -> bool {
+    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
         //some black magic math idk
         let oc = ray.pos - self.pos;
         let a = ray.orientation.norm2();
@@ -92,35 +115,13 @@ impl HitObject for Sphere {
 
         if discriminant > 0.0 {
             let root = (-half_b - discriminant.sqrt()) / a;
-            if root > t_clamp.0 && root < t_clamp.1 {
-                let hit = ray.pos + ray.orientation * root;
-                let normal = self.calculate_normal(hit);
-                record.try_add(
-                    hit,
-                    normal,
-                    root,
-                    ray,
-                    self.material.clone(),
-                    self.get_uv(normal),
-                );
-                return true;
+            if self.try_add_to_record(ray, root, record, t_clamp) {
+                return;
             }
+
             let root = (-half_b + discriminant.sqrt()) / a;
-            if root > t_clamp.0 && root < t_clamp.1 {
-                let hit = ray.pos + ray.orientation * root;
-                let normal = self.calculate_normal(hit);
-                record.try_add(
-                    hit,
-                    normal,
-                    root,
-                    ray,
-                    self.material.clone(),
-                    self.get_uv(normal),
-                );
-                return true;
-            }
+            self.try_add_to_record(ray, root, record, t_clamp);
         }
-        false
     }
 
     fn calculate_normal(&self, hit: Vector3d<f64>) -> Vector3d<f64> {
@@ -214,8 +215,7 @@ fn triangle_ray_intersect(
 }
 
 impl HitObject for Mesh {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) -> bool {
-        let mut hit = false;
+    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
         for triangle in &self.tris {
             let vert = Vertex::default();
             let p0 = self.verts.get(triangle.0).unwrap_or(&vert);
@@ -233,10 +233,8 @@ impl HitObject for Mesh {
                     self.material.clone(),
                     (0.0, 0.0),
                 );
-                hit = true;
             }
         }
-        hit
     }
 
     fn calculate_normal(&self, _hit: Vector3d<f64>) -> Vector3d<f64> {

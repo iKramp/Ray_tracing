@@ -206,6 +206,10 @@ impl RefractiveMaterial {
 }
 
 impl Material for RefractiveMaterial {
+    fn get_color(&self, _record: &HitRecord, next_ray_color: Vector3d<f64>) -> Vector3d<f64> {
+        mult_colors(next_ray_color, self.color)
+    }
+
     fn get_next_ray_dir(&self, record: &HitRecord, rng: &mut ThreadRng) -> RayReturnState {
         let refraction_ratio = if record.front_face {
             1.0 / self.ior
@@ -221,10 +225,6 @@ impl Material for RefractiveMaterial {
             RayReturnState::Ray(self.refract(record))
         }
     }
-
-    fn get_color(&self, _record: &HitRecord, next_ray_color: Vector3d<f64>) -> Vector3d<f64> {
-        mult_colors(next_ray_color, self.color)
-    }
 }
 
 pub struct UVMaterial {
@@ -238,10 +238,6 @@ impl UVMaterial {
 }
 
 impl Material for UVMaterial {
-    fn get_next_ray_dir(&self, record: &HitRecord, rng: &mut ThreadRng) -> RayReturnState {
-        diffuse_ray_direction(record, rng)
-    }
-
     fn get_color(&self, record: &HitRecord, next_ray_color: Vector3d<f64>) -> Vector3d<f64> {
         let image = &record.resources.earth;
         let uv: (f64, f64) = (
@@ -256,5 +252,9 @@ impl Material for UVMaterial {
             *pixel.0.get(2).unwrap() as f64,
         );
         mult_colors(color, next_ray_color)
+    }
+
+    fn get_next_ray_dir(&self, record: &HitRecord, rng: &mut ThreadRng) -> RayReturnState {
+        diffuse_ray_direction(record, rng)
     }
 }

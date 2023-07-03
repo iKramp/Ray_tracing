@@ -49,7 +49,8 @@ pub fn main() {
                         pix_y as f64 + rng.gen_range(0.0..1.0),
                     ),
                 );
-                color = color + vec.trace_ray(&scene_info, 0, &mut rng, resources.clone());
+                vec.normalize();
+                color = color + vec.trace_ray(&scene_info, 5, &mut rng, resources.clone());
                 let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
             }
             color = color / data.samples as f64 / 256.0;
