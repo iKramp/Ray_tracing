@@ -130,15 +130,12 @@ impl HitObject for Sphere {
 
 pub struct Vertex {
     pub(crate) pos: Vector3d<f64>,
-    uv: (f64, f64)
+    uv: (f64, f64),
 }
 
 impl Vertex {
     pub fn new(pos: Vector3d<f64>, uv: (f64, f64)) -> Self {
-        Vertex {
-            pos,
-            uv
-        }
+        Vertex { pos, uv }
     }
 }
 
@@ -146,7 +143,7 @@ impl Default for Vertex {
     fn default() -> Self {
         Vertex {
             pos: Vector3d::default(),
-            uv: (0.0, 0.0)
+            uv: (0.0, 0.0),
         }
     }
 }
@@ -154,20 +151,30 @@ impl Default for Vertex {
 pub struct Mesh {
     verts: Vec<Vertex>,
     tris: Vec<(usize, usize, usize)>,
-    material:Box<Rc<dyn Material>>
+    material: Box<Rc<dyn Material>>,
 }
 
 impl Mesh {
-    pub fn new(verts: Vec<Vertex>, tris: Vec<(usize, usize, usize)>, material: Box<Rc<dyn Material>>) -> Self {
+    pub fn new(
+        verts: Vec<Vertex>,
+        tris: Vec<(usize, usize, usize)>,
+        material: Box<Rc<dyn Material>>,
+    ) -> Self {
         Mesh {
             verts,
             tris,
-            material
+            material,
         }
     }
 }
 
-fn triangle_ray_intersect(p0: Vector3d<f64>, p1: Vector3d<f64>, p2: Vector3d<f64>, ray: &Ray, t_clamp: (f64, f64)) -> Option<f64> {
+fn triangle_ray_intersect(
+    p0: Vector3d<f64>,
+    p1: Vector3d<f64>,
+    p2: Vector3d<f64>,
+    ray: &Ray,
+    t_clamp: (f64, f64),
+) -> Option<f64> {
     let a = p1 - p0;
     let b = p2 - p0;
     let normal = normalize_vec(&mut a.cross(b));
@@ -203,7 +210,6 @@ fn triangle_ray_intersect(p0: Vector3d<f64>, p1: Vector3d<f64>, p2: Vector3d<f64
         return None;
     }
 
-
     Some(t)
 }
 
@@ -225,7 +231,7 @@ impl HitObject for Mesh {
                     t,
                     ray,
                     self.material.clone(),
-                    (0.0, 0.0)
+                    (0.0, 0.0),
                 );
                 hit = true;
             }
@@ -234,7 +240,6 @@ impl HitObject for Mesh {
     }
 
     fn calculate_normal(&self, _hit: Vector3d<f64>) -> Vector3d<f64> {
-        Vector3d::default()//unused
+        Vector3d::default() //unused
     }
 }
-

@@ -1,8 +1,8 @@
 extern crate rand;
 extern crate vector3d;
 
-use image::GenericImageView;
 use super::hit::*;
+use image::GenericImageView;
 use rand::prelude::*;
 use vector3d::Vector3d;
 
@@ -228,12 +228,12 @@ impl Material for RefractiveMaterial {
 }
 
 pub struct UVMaterial {
-    color: Vector3d<f64>,
+    _color: Vector3d<f64>,
 }
 
 impl UVMaterial {
-    pub fn new(color: Vector3d<f64>) -> Self {
-        Self { color }
+    pub fn new(_color: Vector3d<f64>) -> Self {
+        Self { _color }
     }
 }
 
@@ -244,7 +244,10 @@ impl Material for UVMaterial {
 
     fn get_color(&self, record: &HitRecord, next_ray_color: Vector3d<f64>) -> Vector3d<f64> {
         let image = &record.resources.earth;
-        let uv: (f64, f64) = ((record.uv.0) * image.width() as f64, (record.uv.1) * image.height() as f64);
+        let uv: (f64, f64) = (
+            (record.uv.0) * image.width() as f64,
+            (record.uv.1) * image.height() as f64,
+        );
         let pixel = image.get_pixel(uv.0 as u32, uv.1 as u32);
 
         let color = Vector3d::new(
