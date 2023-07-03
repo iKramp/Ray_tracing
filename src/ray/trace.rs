@@ -6,6 +6,7 @@ use super::material::*;
 use crate::Resources;
 use core::f64::consts::PI;
 use vector3d::Vector3d;
+use rand::prelude::*;
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
@@ -106,5 +107,26 @@ impl Ray {
                 record.material.get_color(&record, next_color)
             }
         }
+    }
+
+    pub fn get_color((pix_x, pix_y): (usize, usize), rng: &mut ThreadRng, data: &super::data::CamData, scene_info: &super::data::SceneInfo, resources: &std::rc::Rc<Resources>) -> Vector3d<f64> {
+        let mut color = Vector3d::new(0.0, 0.0, 0.0);
+        for _i in 0..data.samples {
+            let mut vec = claculate_vec_dir_from_cam(
+                &data,
+                    (
+                        pix_x as f64 + rng.gen_range(0.0..1.0),
+                        pix_y as f64 + rng.gen_range(0.0..1.0),
+                    ),
+                );
+            vec.normalize();
+            color = color + vec.trace_ray(&scene_info, 5, rng, resources.clone());
+        }
+        color = color / data.samples as f64 / 256.0;
+        color.x = color.x.sqrt().clamp(0.0, 0.999999999);
+        color.y = color.y.sqrt().clamp(0.0, 0.999999999);
+        color.z = color.z.sqrt().clamp(0.0, 0.999999999);
+        color = color * 256.0;
+        color
     }
 }
