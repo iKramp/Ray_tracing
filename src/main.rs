@@ -6,6 +6,14 @@ use vector3d::Vector3d;
 
 const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 
+fn check_for_quit(event_pump: &mut sdl2::EventPump) {
+    for event in event_pump.poll_iter() {
+        if let sdl2::event::Event::Quit { .. } = event {
+            return;
+        }
+    }
+}
+
 pub fn main() {
     let data = CamData::default();
 
@@ -51,7 +59,6 @@ pub fn main() {
                 );
                 vec.normalize();
                 color = color + vec.trace_ray(&scene_info, 5, &mut rng, resources.clone());
-                let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
             }
             color = color / data.samples as f64 / 256.0;
             color.x = color.x.sqrt().clamp(0.0, 0.999999999);
@@ -63,6 +70,7 @@ pub fn main() {
                 color.y as u8,
                 color.z as u8,
             ));
+            let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
         }
         println!(
             "estimated time left: {}s",
@@ -70,20 +78,13 @@ pub fn main() {
                 * (data.canvas_height - pix_y) as f64
         );
         canvas.present();
-        for event in event_pump.poll_iter() {
-            if let sdl2::event::Event::Quit { .. } = event {
-                return;
-            }
-        }
+        check_for_quit(&mut event_pump);
     }
 
     canvas.present();
 
     loop {
-        for event in event_pump.poll_iter() {
-            if let sdl2::event::Event::Quit { .. } = event {
-                return;
-            }
-        }
+        check_for_quit(&mut event_pump);
+        std::thread::sleep(std::time::Duration::from_millis(100))
     }
 }
