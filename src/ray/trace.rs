@@ -77,7 +77,7 @@ impl Ray {
         &mut self,
         scene_info: &super::data::SceneInfo,
         ray_depth: u32,
-        rng: &mut rand::prelude::ThreadRng,
+        rng: &mut ThreadRng,
         resources: std::rc::Rc<Resources>,
     ) -> Vector3d<f64> {
         self.normalize();
@@ -107,6 +107,39 @@ impl Ray {
                 record.material.get_color(&record, next_color)
             }
         }
+    }
+
+    pub fn render(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, event_pump: &mut sdl2::EventPump, data: &CamData, scene_info: &super::data::SceneInfo, resources: std::rc::Rc<Resources>) -> bool {
+        let mut rng = thread_rng();
+
+        let start = std::time::Instant::now();
+
+        for pix_y in 0..data.canvas_height {
+            for pix_x in 0..data.canvas_width {
+                let color = Self::get_color((pix_x, pix_y), &mut rng, &data, &scene_info, &resources);
+                canvas.set_draw_color(sdl2::pixels::Color::RGB(
+                    color.x as u8,
+                    color.y as u8,
+                    color.z as u8,
+                ));
+                let _res = canvas.draw_point((pix_x as i32, pix_y as i32));
+            }
+            println!(
+                "estimated time left: {}s",
+                (std::time::Instant::now() - start).as_secs_f64() / (pix_y as f64 + 1.0)
+                    * (data.canvas_height - pix_y) as f64
+            );
+            canvas.present();
+
+
+            for event in event_pump.poll_iter() {
+                if let sdl2::event::Event::Quit { .. } = event {
+                    return true;
+                }
+            }
+        }
+
+        false
     }
 
     pub fn get_color((pix_x, pix_y): (usize, usize), rng: &mut ThreadRng, data: &super::data::CamData, scene_info: &super::data::SceneInfo, resources: &std::rc::Rc<Resources>) -> Vector3d<f64> {
