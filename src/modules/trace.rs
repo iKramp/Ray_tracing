@@ -86,7 +86,7 @@ impl Ray {
         record.normal = self.orientation;
         normalize_vec(&mut record.normal);
         if ray_depth == 0 {
-            //child ray count limit
+            //child modules count limit
             return Vector3d::default();
             //return record.material.get_stop_color(&record); //return background color
         }

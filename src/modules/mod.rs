@@ -12,7 +12,7 @@ pub fn get_canvas_and_pump(w: u32, h: u32) -> (WindowCanvas, sdl2::EventPump) {
     let video_subsystem = sdl_context.video().unwrap();
     let window = video_subsystem
         .window(
-            "ray tracer",
+            "modules tracer",
             w,
             h,
         )

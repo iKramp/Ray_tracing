@@ -1,10 +1,10 @@
-pub mod ray;
+pub mod modules;
 use rand::prelude::*;
-use ray::{data::*, material::*, trace::*};
+use modules::{data::*, material::*, trace::*};
 use std::rc::Rc;
 use vector3d::Vector3d;
-use crate::ray::get_canvas_and_pump;
-use crate::ray::RayReturnState::Ray;
+use crate::modules::get_canvas_and_pump;
+use crate::modules::RayReturnState::Ray;
 use anyhow::Result;
 
 use winit::dpi::LogicalSize;
@@ -54,7 +54,7 @@ pub fn main() -> Result<()> {
 
     println!("rendering...");
 
-    /*if ray::Ray::render(&mut canvas, &mut event_pump, &data, &scene_info, resources) {
+    /*if modules::Ray::render(&mut canvas, &mut event_pump, &data, &scene_info, resources) {
         return;
     }*/
 

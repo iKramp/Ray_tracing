@@ -55,9 +55,9 @@ pub trait Material {
     fn get_color(&self, _record: &HitRecord, _next_ray_color: Vector3d<f64>) -> Vector3d<f64> {
         Vector3d::new(0.0, 0.0, 0.0)
     }
-    ///gets next ray direction (not absolute position in world) and returns it
+    ///gets next modules direction (not absolute position in world) and returns it
     fn get_next_ray_dir(&self, record: &HitRecord, rng: &mut ThreadRng) -> RayReturnState;
-    ///gets color without the incoming color, as if the ray stopped there
+    ///gets color without the incoming color, as if the modules stopped there
     fn get_stop_color(&self, _record: &HitRecord) -> Vector3d<f64> {
         Vector3d::new(0.0, 0.0, 0.0)
     }

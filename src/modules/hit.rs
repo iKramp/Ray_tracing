@@ -8,9 +8,9 @@ use vector3d::Vector3d;
 pub struct HitRecord {
     pub pos: Vector3d<f64>,
     pub ray: Ray,
-    pub normal: Vector3d<f64>, //points toward the ray
+    pub normal: Vector3d<f64>, //points toward the modules
     pub t: f64,
-    pub front_face: bool, //is the ray and normal on the front of the face?
+    pub front_face: bool, //is the modules and normal on the front of the face?
     pub material: Box<Rc<dyn Material>>,
     pub uv: (f64, f64),
     pub resources: Rc<Resources>,
