@@ -109,7 +109,7 @@ impl Ray {
         }
     }
 
-    pub fn render(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, event_pump: &mut sdl2::EventPump, data: &CamData, scene_info: &super::data::SceneInfo, resources: std::rc::Rc<Resources>) -> bool {
+    pub fn render(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, event_pump: &mut sdl2::EventPump, data: &CamData, scene_info: &super::data::SceneInfo, resources: std::rc::Rc<Resources>) {
         let mut rng = thread_rng();
 
         let start = std::time::Instant::now();
@@ -134,12 +134,10 @@ impl Ray {
 
             for event in event_pump.poll_iter() {
                 if let sdl2::event::Event::Quit { .. } = event {
-                    return true;
+                    return;
                 }
             }
         }
-
-        false
     }
 
     pub fn get_color((pix_x, pix_y): (usize, usize), rng: &mut ThreadRng, data: &super::data::CamData, scene_info: &super::data::SceneInfo, resources: &std::rc::Rc<Resources>) -> Vector3d<f64> {

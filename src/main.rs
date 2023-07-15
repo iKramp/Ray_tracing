@@ -13,11 +13,9 @@ use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::{Window, WindowBuilder};
 
 
-const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
-
-
-
 pub fn main() -> Result<()> {
+    pretty_env_logger::init();
+
     let data = CamData::default();
 
     let image = image::open("src/resources/earth_4.jpg").unwrap();
@@ -29,57 +27,27 @@ pub fn main() -> Result<()> {
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
-        .with_title("Vulkan Tutorial (Rust)")
-        .with_inner_size(LogicalSize::new(1024, 768))
+        .with_title("Ray Tracer (Vulkan)")
+        .with_inner_size(LogicalSize::new(data.canvas_width as u32, data.canvas_height as u32))
+        .with_resizable(false)
         .build(&event_loop)?;
 
+    let mut app = unsafe { modules::vulkan::App::create(&window)? };
     let mut destroying = false;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
             // Render a frame if our Vulkan app is not being destroyed.
-            Event::MainEventsCleared if !destroying => {},
-                //unsafe { app.render(&window) }.unwrap(),
-                //render here
+            Event::MainEventsCleared if !destroying =>
+                unsafe { app.render(&window) }.unwrap(),
             // Destroy our Vulkan app.
             Event::WindowEvent { event: WindowEvent::CloseRequested, .. } => {
                 destroying = true;
                 *control_flow = ControlFlow::Exit;
-                //unsafe { app.destroy(); }
+                unsafe { app.destroy(); }
             }
             _ => {}
         }
     });
 
-
-    println!("rendering...");
-
-    /*if modules::Ray::render(&mut canvas, &mut event_pump, &data, &scene_info, resources) {
-        return;
-    }*/
-
-
-
-
-
-
-
-
-
-
-
-    println!("done rendering");
-
-    Ok(())
-
-    /*canvas.present();
-
-    loop {
-        for event in event_pump.poll_iter() {
-            if let sdl2::event::Event::Quit { .. } = event {
-                return;
-            }
-        }
-        std::thread::sleep(std::time::Duration::from_millis(100))
-    }*/
 }

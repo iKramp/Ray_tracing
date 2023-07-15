@@ -48,8 +48,8 @@ pub struct CamData {
 impl Default for CamData {
     fn default() -> Self {
         Self {
-            canvas_width: 247,  //498,  //1280, 498
-            canvas_height: 140, //280, //720, 280
+            canvas_width: 1280,  //247,  //1280, 498
+            canvas_height: 720, //140, //720, 280
             fov: 30.0,
             transform: Ray {
                 pos: Vector3d::new(0.0, 0.5, -5.0),
