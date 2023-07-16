@@ -1,7 +1,3 @@
-//use alloc::boxed::Box;
-//use alloc::rc::Rc;
-//use alloc::vec;
-//use alloc::vec::Vec;
 use super::hit::HitObject;
 use super::trace::Ray;
 use vector3d::Vector3d;
