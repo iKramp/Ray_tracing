@@ -1,16 +1,14 @@
 pub mod modules;
 use rand::prelude::*;
-use modules::{data::*, material::*, trace::*};
+use modules::{data::*, material::*};
 use std::rc::Rc;
-use vector3d::Vector3d;
-use crate::modules::get_canvas_and_pump;
 use crate::modules::RayReturnState::Ray;
 use anyhow::Result;
 
 use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
-use winit::window::{Window, WindowBuilder};
+use winit::window::WindowBuilder;
 
 
 pub fn main() -> Result<()> {
@@ -18,8 +16,8 @@ pub fn main() -> Result<()> {
 
     let data = CamData::default();
 
-    let image = image::open("src/resources/earth_4.jpg").unwrap();
-    let resources = Rc::new(Resources { earth: image });
+    //let image = image::open("program/resources/earth_4.jpg").unwrap();
+    //let resources = Rc::new(Resources { earth: image });
     let _normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo::default();
 

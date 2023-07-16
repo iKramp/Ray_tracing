@@ -1,39 +1,11 @@
-[package]
-name = "ray_tracing"
-version = "0.1.0"
-edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-rand = "0.8.5"
-vector3d = "0.2.1"
-image = "0.24.6"
-vulkanalia = { version = "=0.21.0", features = ["libloading", "provisional", "window"] }
-winit = "0.28.6"
-anyhow = "1.0.71"
-lazy_static = "1"
-log = "0.4"
-nalgebra-glm = "0.18"
-png = "0.17"
-pretty_env_logger = "0.5.0"
-thiserror = "1"
-
-
-# set custom dependency for windows
-[target.'cfg(windows)'.dependencies]
-sdl2 = { version = "=0.35.2", features = ["bundled", "static-link"] }
-sdl2-sys = { version = "=0.35.2", features = ["bundled", "static-link"] }
-
-# set custom dependency for linux
-[target.'cfg(unix)'.dependencies]
-sdl2 = { version = "=0.35.2", features = ["use-pkgconfig", "static-link"] }
-sdl2-sys = { version = "=0.35.2", features = ["use-pkgconfig", "static-link"] }
-
-[build-dependencies]
-shader = {path = "./shader"}
-spirv-builder = "0.8.0"
-
+[workspace]
+resolver = "2"
+members = [
+    "shared",
+    "shader",
+    "program",
+    "vector3d",
+]
 
 # Compile build-dependencies in release mode with
 # the same settings as regular dependencies.
@@ -42,3 +14,6 @@ opt-level = 3
 codegen-units = 16
 [profile.dev.build-override]
 opt-level = 3
+
+[workspace.dependencies]
+spirv-std = "0.8.0"

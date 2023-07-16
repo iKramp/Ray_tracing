@@ -15,6 +15,8 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
+use super::data::{WIDTH, HEIGHT};
+
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
@@ -585,9 +587,8 @@ unsafe fn create_render_pass(instance: &Instance, device: &Device, data: &mut Ap
 unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
     // Stages
 
-    let vert = include_bytes!("../../shader/vert.spv");
-    let frag = include_bytes!("../../shader/frag.spv");
     let frag = SHADER;
+    let vert = SHADER;
 
     let vert_shader_module = create_shader_module(device, &vert[..])?;
     let frag_shader_module = create_shader_module(device, &frag[..])?;
@@ -595,12 +596,12 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
     let vert_stage = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)
         .module(vert_shader_module)
-        .name(b"main\0");
+        .name(b"main_vs\0");
 
     let frag_stage = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::FRAGMENT)
         .module(frag_shader_module)
-        .name(b"main\0");
+        .name(b"main_fs\0");
 
     // Vertex Input State
 
@@ -785,9 +786,26 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             .render_area(render_area)
             .clear_values(clear_values);
 
+        let push_constant = shared::ShaderConstants {
+            width: WIDTH as u32,
+            height: HEIGHT as u32,
+            time: 0.0,
+            cursor_x: 0.0,
+            cursor_y: 0.0,
+            drag_start_x: 0.0,
+            drag_start_y: 0.0,
+            drag_end_x: 0.0,
+            drag_end_y: 0.0,
+            mouse_button_pressed: 0,
+            mouse_button_press_time: [f32::NEG_INFINITY; 3],
+        };
+
+        let push_constant = any_as_u8_slice(&push_constant);
+
         device.cmd_begin_render_pass(*command_buffer, &info, vk::SubpassContents::INLINE);
         device.cmd_bind_pipeline(*command_buffer, vk::PipelineBindPoint::GRAPHICS, data.pipeline);
-        device.cmd_draw(*command_buffer, 6, 1, 0, 0);
+        device.cmd_push_constants(*command_buffer, data.pipeline_layout, vk::ShaderStageFlags::ALL, 0, push_constant);
+        device.cmd_draw(*command_buffer, 3, 1, 0, 0);
         device.cmd_end_render_pass(*command_buffer);
 
         device.end_command_buffer(*command_buffer)?;
@@ -868,4 +886,9 @@ impl SwapchainSupport {
             present_modes: instance.get_physical_device_surface_present_modes_khr(physical_device, data.surface)?,
         })
     }
+}
+
+
+unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
+    ::std::slice::from_raw_parts((p as *const T).cast::<u8>(), ::std::mem::size_of::<T>())
 }
