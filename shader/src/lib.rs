@@ -18,7 +18,7 @@ pub fn main_fs(
     let y = in_frag_coord.y / height;
 
     let color =
-        modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize));
+        modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize)) / 255.0; //tracer gives colors from 0 to 255
 
     /*if x >= 0.75 || y >= 0.75 || x < 0.25 || y < 0.25 {
         *output = Vec4::new(y, x, in_frag_coord.z + 0.5, in_frag_coord.w);

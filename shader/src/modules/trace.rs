@@ -21,7 +21,7 @@ pub fn claculate_vec_dir_from_cam(/*data: &CamData,*/ (pix_x, pix_y): (f32, f32)
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
-    let mut cam_vec = Ray::new(Vector3d::default(), Vector3d::new(0.0, 1.0, 0.0)); //data.transform;
+    let mut cam_vec = Ray::new(Vector3d::default(), Vector3d::new(1.0, 0.0, 0.0)); //data.transform;
     cam_vec.normalize();
 
     let mut yaw: f32 = (cam_vec.orientation.x as f32).asin();
@@ -122,6 +122,14 @@ impl Ray {
                 pix_y as f32, // + rng.gen_range(0.0..1.0),
             ),
         );
+
+        let mut temp = vec;
+        temp.normalize();
+        let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
+        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
+
+
         return vec.orientation;
         vec.normalize();
         //color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
