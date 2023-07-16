@@ -14,12 +14,18 @@ pub fn main_fs(
 ) {
     let width = 1280.0; //shader_consts.width as f32;//commented until i get shader constants to work
     let height = 720.0; //shader_consts.height as f32;
-    *output = Vec4::new(
-        in_frag_coord.x / width,
-        in_frag_coord.y / height,
-        in_frag_coord.z / 255.0,
-        in_frag_coord.w,
-    );
+    let x = in_frag_coord.x / width;
+    let y = in_frag_coord.y / height;
+
+    let color =
+        modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize));
+
+    /*if x >= 0.75 || y >= 0.75 || x < 0.25 || y < 0.25 {
+        *output = Vec4::new(y, x, in_frag_coord.z + 0.5, in_frag_coord.w);
+    } else {
+        *output = Vec4::new(x, y, in_frag_coord.z / 255.0, in_frag_coord.w);
+    }*/
+    *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
 }
 
 #[spirv(vertex)]

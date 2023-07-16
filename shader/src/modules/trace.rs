@@ -6,14 +6,14 @@ use core::f64::consts::PI;
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
-pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) -> Ray {
+pub fn claculate_vec_dir_from_cam(/*data: &CamData,*/ (pix_x, pix_y): (f32, f32)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
-    let fov_rad = data.fov / 180.0 * PI;
-    let virt_canvas_height = (fov_rad / 2.0).tan();
+    let fov_rad: f32 = 90.0; //data.fov / 180.0 * PI;
+    let virt_canvas_height: f32 = (fov_rad / 2.0).tan();
 
-    let pix_offset_y = (-pix_y / data.canvas_height as f64 + 0.5) * virt_canvas_height;
-    let pix_offset_x = (pix_x / data.canvas_height as f64
-        - 0.5 * (data.canvas_width as f64 / data.canvas_height as f64))
+    let pix_offset_y = (-pix_y / 720.0/*data.canvas_height as f64*/ + 0.5) * virt_canvas_height;
+    let pix_offset_x = (pix_x / 1280.0/*data.canvas_height as f64*/
+        - 0.5 * (1280.0/*data.canvas_width as f64*/ / 720.0/*data.canvas_height as f64*/))
         * virt_canvas_height;
 
     //println!("{},{}   ", pix_offset_x, pix_offset_y);
@@ -21,27 +21,27 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) ->
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
-    let mut cam_vec = data.transform;
+    let mut cam_vec = Ray::new(Vector3d::default(), Vector3d::new(0.0, 1.0, 0.0)); //data.transform;
     cam_vec.normalize();
 
-    let mut yaw = cam_vec.orientation.x.asin();
+    let mut yaw: f32 = (cam_vec.orientation.x as f32).asin();
     if cam_vec.orientation.z < 0.0 {
-        yaw = PI - yaw;
+        yaw = PI as f32 - yaw;
     }
-    let mut pitch = cam_vec.orientation.y.asin();
+    let mut pitch: f32 = (cam_vec.orientation.y as f32).asin();
     if cam_vec.orientation.z < 0.0 {
-        pitch = PI - pitch;
+        pitch = PI as f32 - pitch;
     }
 
     yaw += offset_yaw;
     pitch += offset_pitch;
 
     Ray::new(
-        data.transform.pos,
+        Vector3d::default(), /*data.transform.pos,*/
         Vector3d::new(
-            yaw.sin() * pitch.cos(),
-            pitch.sin(),
-            yaw.cos() * pitch.cos(),
+            (yaw.sin() * pitch.cos()) as f64,
+            pitch.sin() as f64,
+            (yaw.cos() * pitch.cos()) as f64,
         ),
     )
 }
@@ -108,38 +108,25 @@ impl Ray {
         Vector3d::default()
     }
 
-    pub fn render(
-        pos: (usize, usize),
-        data: &CamData,
-        scene_info: &super::data::SceneInfo, /*, resources: Rc<Resources>*/
-    ) {
-        //let mut rng = thread_rng();
-
-        let color = Self::get_color(
-            (pos.0, pos.1),
-            /*&mut rng,*/ &data,
-            &scene_info, /*, &resources*/
-        );
-    }
-
     pub fn get_color(
         (pix_x, pix_y): (usize, usize),
-        /*rng: &mut ThreadRng, */ data: &super::data::CamData,
-        scene_info: &super::data::SceneInfo, /* resources: &Rc<Resources>*/
+        /*rng: &mut ThreadRng, */ /*data: &super::data::CamData,*/
+        /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
-        for _i in 0..data.samples {
-            let mut vec = claculate_vec_dir_from_cam(
-                &data,
-                (
-                    pix_x as f64, // + rng.gen_range(0.0..1.0),
-                    pix_y as f64, // + rng.gen_range(0.0..1.0),
-                ),
-            );
-            vec.normalize();
-            color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
-        }
-        color = color / data.samples as f64 / 256.0;
+        //for _i in 0..data.samples {
+        let mut vec = claculate_vec_dir_from_cam(
+            //&data,
+            (
+                pix_x as f32, // + rng.gen_range(0.0..1.0),
+                pix_y as f32, // + rng.gen_range(0.0..1.0),
+            ),
+        );
+        return vec.orientation;
+        vec.normalize();
+        //color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
+        //}
+        color = color / 1.0/*data.samples as f64*/ / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
         color.y = color.y.sqrt().clamp(0.0, 0.999999999);
         color.z = color.z.sqrt().clamp(0.0, 0.999999999);

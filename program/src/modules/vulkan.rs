@@ -413,7 +413,7 @@ unsafe fn create_logical_device(
 
     // Features
 
-    let features = vk::PhysicalDeviceFeatures::builder();
+    let features = vk::PhysicalDeviceFeatures::builder().shader_float64(true);
 
     // Create
 
