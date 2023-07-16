@@ -20,7 +20,7 @@ use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
 
 /// Whether the validation layers should be enabled.
-const VALIDATION_ENABLED: bool = cfg!(debug_assertions);
+const VALIDATION_ENABLED: bool = false;//cfg!(debug_assertions);
 /// The name of the validation layers.
 const VALIDATION_LAYER: vk::ExtensionName = vk::ExtensionName::from_bytes(b"VK_LAYER_KHRONOS_validation");
 
@@ -587,6 +587,7 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
 
     let vert = include_bytes!("../../shader/vert.spv");
     let frag = include_bytes!("../../shader/frag.spv");
+    let frag = SHADER;
 
     let vert_shader_module = create_shader_module(device, &vert[..])?;
     let frag_shader_module = create_shader_module(device, &frag[..])?;
