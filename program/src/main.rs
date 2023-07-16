@@ -34,11 +34,24 @@ pub fn main() -> Result<()> {
 
     let mut app = unsafe { modules::vulkan::App::create(&window)? };
     let mut destroying = false;
+    let mut frame_count = 0;
+    let mut start_time = std::time::Instant::now();
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
             // Render a frame if our Vulkan app is not being destroyed.
-            Event::MainEventsCleared if !destroying => unsafe { app.render(&window) }.unwrap(),
+            Event::MainEventsCleared if !destroying => unsafe {
+                frame_count += 1;
+                let elapsed = start_time.elapsed().as_secs_f32();
+                if elapsed > 1.0 {
+                    let fps = frame_count as f32 / elapsed;
+                    println!("FPS: {}", fps);
+                    frame_count = 0;
+                    start_time = std::time::Instant::now();
+                }
+                app.render(&window)
+
+            }.unwrap(),
             // Destroy our Vulkan app.
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
