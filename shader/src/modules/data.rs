@@ -1,7 +1,7 @@
 use super::hit::HitObject;
 use super::trace::Ray;
-use vector3d::Vector3d;
 use spirv_std::num_traits::Float;
+use vector3d::Vector3d;
 
 /*fn parse_obj_file(path: &str, scale: f64, transform: vector3d) -> Box<dyn HitObject> {
     let _objects: Vec<Box<dyn HitObject>> = Vec::new();

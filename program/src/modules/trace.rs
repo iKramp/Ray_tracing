@@ -5,8 +5,8 @@ use super::hit::*;
 use super::material::*;
 use crate::Resources;
 use core::f64::consts::PI;
-use vector3d::Vector3d;
 use rand::prelude::*;
+use vector3d::Vector3d;
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f64, f64)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
@@ -109,14 +109,21 @@ impl Ray {
         }
     }
 
-    pub fn render(canvas: &mut sdl2::render::Canvas<sdl2::video::Window>, event_pump: &mut sdl2::EventPump, data: &CamData, scene_info: &super::data::SceneInfo, resources: std::rc::Rc<Resources>) {
+    pub fn render(
+        canvas: &mut sdl2::render::Canvas<sdl2::video::Window>,
+        event_pump: &mut sdl2::EventPump,
+        data: &CamData,
+        scene_info: &super::data::SceneInfo,
+        resources: std::rc::Rc<Resources>,
+    ) {
         let mut rng = thread_rng();
 
         let start = std::time::Instant::now();
 
         for pix_y in 0..data.canvas_height {
             for pix_x in 0..data.canvas_width {
-                let color = Self::get_color((pix_x, pix_y), &mut rng, &data, &scene_info, &resources);
+                let color =
+                    Self::get_color((pix_x, pix_y), &mut rng, &data, &scene_info, &resources);
                 canvas.set_draw_color(sdl2::pixels::Color::RGB(
                     color.x as u8,
                     color.y as u8,
@@ -131,7 +138,6 @@ impl Ray {
             );
             canvas.present();
 
-
             for event in event_pump.poll_iter() {
                 if let sdl2::event::Event::Quit { .. } = event {
                     return;
@@ -140,16 +146,22 @@ impl Ray {
         }
     }
 
-    pub fn get_color((pix_x, pix_y): (usize, usize), rng: &mut ThreadRng, data: &super::data::CamData, scene_info: &super::data::SceneInfo, resources: &std::rc::Rc<Resources>) -> Vector3d<f64> {
+    pub fn get_color(
+        (pix_x, pix_y): (usize, usize),
+        rng: &mut ThreadRng,
+        data: &super::data::CamData,
+        scene_info: &super::data::SceneInfo,
+        resources: &std::rc::Rc<Resources>,
+    ) -> Vector3d<f64> {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
         for _i in 0..data.samples {
             let mut vec = claculate_vec_dir_from_cam(
                 &data,
-                    (
-                        pix_x as f64 + rng.gen_range(0.0..1.0),
-                        pix_y as f64 + rng.gen_range(0.0..1.0),
-                    ),
-                );
+                (
+                    pix_x as f64 + rng.gen_range(0.0..1.0),
+                    pix_y as f64 + rng.gen_range(0.0..1.0),
+                ),
+            );
             vec.normalize();
             color = color + vec.trace_ray(&scene_info, 5, rng, resources.clone());
         }

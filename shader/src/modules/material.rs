@@ -1,8 +1,7 @@
 use super::hit::*;
 //use image::GenericImageView;
-use vector3d::Vector3d;
 use spirv_std::num_traits::Float;
-
+use vector3d::Vector3d;
 
 pub enum RayReturnState {
     Absorb, //return color 0, 0, 0
@@ -54,7 +53,7 @@ pub trait Material {
         Vector3d::new(0.0, 0.0, 0.0)
     }
     ///gets next modules direction (not absolute position in world) and returns it
-    fn get_next_ray_dir(&self, record: &HitRecord/*, rng: &mut ThreadRng*/) -> RayReturnState;
+    fn get_next_ray_dir(&self, record: &HitRecord /*, rng: &mut ThreadRng*/) -> RayReturnState;
     ///gets color without the incoming color, as if the modules stopped there
     fn get_stop_color(&self, _record: &HitRecord) -> Vector3d {
         Vector3d::new(0.0, 0.0, 0.0)
@@ -76,7 +75,10 @@ impl Material for DiffuseMaterial {
         mult_colors(next_ray_color, self.color)
     }
 
-    fn get_next_ray_dir(&self, record: &HitRecord/*, rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        record: &HitRecord, /*, rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
         //diffuse_ray_direction(record, rng)
     }
@@ -98,7 +100,10 @@ impl Material for MetalMaterial {
         mult_colors(next_ray_color, self.color)
     }
 
-    fn get_next_ray_dir(&self, record: &HitRecord/*, rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        record: &HitRecord, /*, rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
         /*let old_ray = record.ray.orientation;
         let mut new_ray = old_ray - record.normal * old_ray.dot(record.normal) * 2.0;
@@ -115,7 +120,10 @@ impl Material for MetalMaterial {
 pub struct NormalMaterial {}
 
 impl Material for NormalMaterial {
-    fn get_next_ray_dir(&self, _record: &HitRecord/*, _rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        _record: &HitRecord, /*, _rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
     }
 
@@ -131,7 +139,10 @@ impl Material for NormalMaterial {
 pub struct BackgroundMaterial {}
 
 impl Material for BackgroundMaterial {
-    fn get_next_ray_dir(&self, _record: &HitRecord/*, _rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        _record: &HitRecord, /*, _rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
     }
 
@@ -156,7 +167,10 @@ impl EmmissiveMaterial {
 }
 
 impl Material for EmmissiveMaterial {
-    fn get_next_ray_dir(&self, _record: &HitRecord/*, _rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        _record: &HitRecord, /*, _rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
     }
 
@@ -210,7 +224,10 @@ impl Material for RefractiveMaterial {
         mult_colors(next_ray_color, self.color)
     }
 
-    fn get_next_ray_dir(&self, record: &HitRecord/*, rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        record: &HitRecord, /*, rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
         /*let refraction_ratio = if record.front_face {
             1.0 / self.ior
@@ -256,7 +273,10 @@ impl Material for UVMaterial {
         Vector3d::default()
     }
 
-    fn get_next_ray_dir(&self, record: &HitRecord/*, rng: &mut ThreadRng*/) -> RayReturnState {
+    fn get_next_ray_dir(
+        &self,
+        record: &HitRecord, /*, rng: &mut ThreadRng*/
+    ) -> RayReturnState {
         RayReturnState::Stop
         //diffuse_ray_direction(record, rng)
     }

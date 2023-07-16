@@ -1,8 +1,8 @@
 #![no_std]
 
-use spirv_std::spirv;
-use spirv_std::glam::{vec4, Vec4, Vec2, vec2};
 use shared::*;
+use spirv_std::glam::{vec2, vec4, Vec2, Vec4};
+use spirv_std::spirv;
 pub mod modules;
 use modules::{data::*, material::*};
 
@@ -12,9 +12,14 @@ pub fn main_fs(
     #[spirv(push_constant)] shader_consts: &ShaderConstants,
     output: &mut Vec4,
 ) {
-    let width = 1280.0;//shader_consts.width as f32;//commented until i get shader constants to work
-    let height = 720.0;//shader_consts.height as f32;
-    *output = Vec4::new(in_frag_coord.x / width, in_frag_coord.y / height, in_frag_coord.z / 255.0, in_frag_coord.w);
+    let width = 1280.0; //shader_consts.width as f32;//commented until i get shader constants to work
+    let height = 720.0; //shader_consts.height as f32;
+    *output = Vec4::new(
+        in_frag_coord.x / width,
+        in_frag_coord.y / height,
+        in_frag_coord.z / 255.0,
+        in_frag_coord.w,
+    );
 }
 
 #[spirv(vertex)]

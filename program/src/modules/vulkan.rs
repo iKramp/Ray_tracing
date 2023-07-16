@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
-#![allow(dead_code, unused_variables, clippy::too_many_arguments, clippy::unnecessary_wraps)]
+#![allow(
+    dead_code,
+    unused_variables,
+    clippy::too_many_arguments,
+    clippy::unnecessary_wraps
+)]
 
 use std::collections::HashSet;
 use std::ffi::CStr;
@@ -15,19 +20,23 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
-use super::data::{WIDTH, HEIGHT};
+use super::data::{HEIGHT, WIDTH};
 
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
 
 /// Whether the validation layers should be enabled.
-const VALIDATION_ENABLED: bool = false;//cfg!(debug_assertions);
+const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
 /// The name of the validation layers.
-const VALIDATION_LAYER: vk::ExtensionName = vk::ExtensionName::from_bytes(b"VK_LAYER_KHRONOS_validation");
+const VALIDATION_LAYER: vk::ExtensionName =
+    vk::ExtensionName::from_bytes(b"VK_LAYER_KHRONOS_validation");
 
 /// The required device extensions.
-const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[vk::KHR_SWAPCHAIN_EXTENSION.name, vk::KHR_VULKAN_MEMORY_MODEL_EXTENSION.name];
+const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[
+    vk::KHR_SWAPCHAIN_EXTENSION.name,
+    vk::KHR_VULKAN_MEMORY_MODEL_EXTENSION.name,
+];
 /// The Vulkan SDK version that started requiring the portability subset extension for macOS.
 const PORTABILITY_MACOS_VERSION: Version = Version::new(1, 3, 216);
 
@@ -119,7 +128,8 @@ impl App {
             .swapchains(swapchains)
             .image_indices(image_indices);
 
-        self.device.queue_present_khr(self.data.present_queue, &present_info)?;
+        self.device
+            .queue_present_khr(self.data.present_queue, &present_info)?;
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
@@ -228,7 +238,11 @@ unsafe fn create_instance(window: &Window, entry: &Entry, data: &mut AppData) ->
     // Required by Vulkan SDK on macOS since 1.3.216.
     let flags = if cfg!(target_os = "macos") && entry.version()? >= PORTABILITY_MACOS_VERSION {
         info!("Enabling extensions for macOS portability.");
-        extensions.push(vk::KHR_GET_PHYSICAL_DEVICE_PROPERTIES2_EXTENSION.name.as_ptr());
+        extensions.push(
+            vk::KHR_GET_PHYSICAL_DEVICE_PROPERTIES2_EXTENSION
+                .name
+                .as_ptr(),
+        );
         extensions.push(vk::KHR_PORTABILITY_ENUMERATION_EXTENSION.name.as_ptr());
         vk::InstanceCreateFlags::ENUMERATE_PORTABILITY_KHR
     } else {
@@ -302,7 +316,10 @@ unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData) -> Resul
         let properties = instance.get_physical_device_properties(physical_device);
 
         if let Err(error) = check_physical_device(instance, data, physical_device) {
-            warn!("Skipping physical device (`{}`): {}", properties.device_name, error);
+            warn!(
+                "Skipping physical device (`{}`): {}",
+                properties.device_name, error
+            );
         } else {
             info!("Selected physical device (`{}`).", properties.device_name);
             data.physical_device = physical_device;
@@ -329,7 +346,10 @@ unsafe fn check_physical_device(
     Ok(())
 }
 
-unsafe fn check_physical_device_extensions(instance: &Instance, physical_device: vk::PhysicalDevice) -> Result<()> {
+unsafe fn check_physical_device_extensions(
+    instance: &Instance,
+    physical_device: vk::PhysicalDevice,
+) -> Result<()> {
     let extensions = instance
         .enumerate_device_extension_properties(physical_device, None)?
         .iter()
@@ -338,7 +358,9 @@ unsafe fn check_physical_device_extensions(instance: &Instance, physical_device:
     if DEVICE_EXTENSIONS.iter().all(|e| extensions.contains(e)) {
         Ok(())
     } else {
-        Err(anyhow!(SuitabilityError("Missing required device extensions.")))
+        Err(anyhow!(SuitabilityError(
+            "Missing required device extensions."
+        )))
     }
 }
 
@@ -346,7 +368,11 @@ unsafe fn check_physical_device_extensions(instance: &Instance, physical_device:
 // Logical Device
 //================================================
 
-unsafe fn create_logical_device(entry: &Entry, instance: &Instance, data: &mut AppData) -> Result<Device> {
+unsafe fn create_logical_device(
+    entry: &Entry,
+    instance: &Instance,
+    data: &mut AppData,
+) -> Result<Device> {
     // Queue Create Infos
 
     let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
@@ -375,7 +401,10 @@ unsafe fn create_logical_device(entry: &Entry, instance: &Instance, data: &mut A
 
     // Extensions
 
-    let mut extensions = DEVICE_EXTENSIONS.iter().map(|n| n.as_ptr()).collect::<Vec<_>>();
+    let mut extensions = DEVICE_EXTENSIONS
+        .iter()
+        .map(|n| n.as_ptr())
+        .collect::<Vec<_>>();
 
     // Required by Vulkan SDK on macOS since 1.3.216.
     if cfg!(target_os = "macos") && entry.version()? >= PORTABILITY_MACOS_VERSION {
@@ -408,7 +437,12 @@ unsafe fn create_logical_device(entry: &Entry, instance: &Instance, data: &mut A
 // Swapchain
 //================================================
 
-unsafe fn create_swapchain(window: &Window, instance: &Instance, device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_swapchain(
+    window: &Window,
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
     // Image
 
     let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
@@ -422,7 +456,9 @@ unsafe fn create_swapchain(window: &Window, instance: &Instance, device: &Device
     data.swapchain_extent = extent;
 
     let mut image_count = support.capabilities.min_image_count + 1;
-    if support.capabilities.max_image_count != 0 && image_count > support.capabilities.max_image_count {
+    if support.capabilities.max_image_count != 0
+        && image_count > support.capabilities.max_image_count
+    {
         image_count = support.capabilities.max_image_count;
     }
 
@@ -466,7 +502,10 @@ fn get_swapchain_surface_format(formats: &[vk::SurfaceFormatKHR]) -> vk::Surface
     formats
         .iter()
         .cloned()
-        .find(|f| f.format == vk::Format::B8G8R8A8_SRGB && f.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR)
+        .find(|f| {
+            f.format == vk::Format::B8G8R8A8_SRGB
+                && f.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
+        })
         .unwrap_or_else(|| formats[0])
 }
 
@@ -535,7 +574,11 @@ unsafe fn create_swapchain_image_views(device: &Device, data: &mut AppData) -> R
 // Pipeline
 //================================================
 
-unsafe fn create_render_pass(instance: &Instance, device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_render_pass(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
     // Attachments
 
     let color_attachment = vk::AttachmentDescription::builder()
@@ -738,7 +781,11 @@ unsafe fn create_framebuffers(device: &Device, data: &mut AppData) -> Result<()>
 // Command Pool
 //================================================
 
-unsafe fn create_command_pool(instance: &Instance, device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_command_pool(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
     let indices = QueueFamilyIndices::get(instance, data, data.physical_device)?;
 
     let info = vk::CommandPoolCreateInfo::builder().queue_family_index(indices.graphics);
@@ -803,8 +850,18 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
         let push_constant = any_as_u8_slice(&push_constant);
 
         device.cmd_begin_render_pass(*command_buffer, &info, vk::SubpassContents::INLINE);
-        device.cmd_bind_pipeline(*command_buffer, vk::PipelineBindPoint::GRAPHICS, data.pipeline);
-        device.cmd_push_constants(*command_buffer, data.pipeline_layout, vk::ShaderStageFlags::ALL, 0, push_constant);
+        device.cmd_bind_pipeline(
+            *command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            data.pipeline,
+        );
+        device.cmd_push_constants(
+            *command_buffer,
+            data.pipeline_layout,
+            vk::ShaderStageFlags::ALL,
+            0,
+            push_constant,
+        );
         device.cmd_draw(*command_buffer, 3, 1, 0, 0);
         device.cmd_end_render_pass(*command_buffer);
 
@@ -828,10 +885,15 @@ unsafe fn create_sync_objects(device: &Device, data: &mut AppData) -> Result<()>
         data.render_finished_semaphores
             .push(device.create_semaphore(&semaphore_info, None)?);
 
-        data.in_flight_fences.push(device.create_fence(&fence_info, None)?);
+        data.in_flight_fences
+            .push(device.create_fence(&fence_info, None)?);
     }
 
-    data.images_in_flight = data.swapchain_images.iter().map(|_| vk::Fence::null()).collect();
+    data.images_in_flight = data
+        .swapchain_images
+        .iter()
+        .map(|_| vk::Fence::null())
+        .collect();
 
     Ok(())
 }
@@ -847,7 +909,11 @@ struct QueueFamilyIndices {
 }
 
 impl QueueFamilyIndices {
-    unsafe fn get(instance: &Instance, data: &AppData, physical_device: vk::PhysicalDevice) -> Result<Self> {
+    unsafe fn get(
+        instance: &Instance,
+        data: &AppData,
+        physical_device: vk::PhysicalDevice,
+    ) -> Result<Self> {
         let properties = instance.get_physical_device_queue_family_properties(physical_device);
 
         let graphics = properties
@@ -857,7 +923,11 @@ impl QueueFamilyIndices {
 
         let mut present = None;
         for (index, properties) in properties.iter().enumerate() {
-            if instance.get_physical_device_surface_support_khr(physical_device, index as u32, data.surface)? {
+            if instance.get_physical_device_surface_support_khr(
+                physical_device,
+                index as u32,
+                data.surface,
+            )? {
                 present = Some(index as u32);
                 break;
             }
@@ -866,7 +936,9 @@ impl QueueFamilyIndices {
         if let (Some(graphics), Some(present)) = (graphics, present) {
             Ok(Self { graphics, present })
         } else {
-            Err(anyhow!(SuitabilityError("Missing required queue families.")))
+            Err(anyhow!(SuitabilityError(
+                "Missing required queue families."
+            )))
         }
     }
 }
@@ -879,15 +951,21 @@ struct SwapchainSupport {
 }
 
 impl SwapchainSupport {
-    unsafe fn get(instance: &Instance, data: &AppData, physical_device: vk::PhysicalDevice) -> Result<Self> {
+    unsafe fn get(
+        instance: &Instance,
+        data: &AppData,
+        physical_device: vk::PhysicalDevice,
+    ) -> Result<Self> {
         Ok(Self {
-            capabilities: instance.get_physical_device_surface_capabilities_khr(physical_device, data.surface)?,
-            formats: instance.get_physical_device_surface_formats_khr(physical_device, data.surface)?,
-            present_modes: instance.get_physical_device_surface_present_modes_khr(physical_device, data.surface)?,
+            capabilities: instance
+                .get_physical_device_surface_capabilities_khr(physical_device, data.surface)?,
+            formats: instance
+                .get_physical_device_surface_formats_khr(physical_device, data.surface)?,
+            present_modes: instance
+                .get_physical_device_surface_present_modes_khr(physical_device, data.surface)?,
         })
     }
 }
-
 
 unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
     ::std::slice::from_raw_parts((p as *const T).cast::<u8>(), ::std::mem::size_of::<T>())

@@ -5,7 +5,7 @@
 pub struct Vector3d {
     pub x: f64,
     pub y: f64,
-    pub z: f64
+    pub z: f64,
 }
 
 impl Vector3d {
@@ -21,10 +21,7 @@ impl Vector3d {
         self.x.clone() * self.x + self.y.clone() * self.y + self.z.clone() * self.z
     }
 
-    pub fn cross(
-        self,
-        rhs: Vector3d,
-    ) -> Vector3d {
+    pub fn cross(self, rhs: Vector3d) -> Vector3d {
         Vector3d::new(
             rhs.z.clone() * self.y.clone() - rhs.y.clone() * self.z.clone(),
             rhs.x.clone() * self.z.clone() - rhs.z * self.x.clone(),
@@ -56,7 +53,7 @@ impl Sub<Vector3d> for Vector3d {
 }
 
 impl Sum<Vector3d> for Vector3d {
-    fn sum<I: Iterator<Item =Vector3d>>(mut iter: I) -> Vector3d {
+    fn sum<I: Iterator<Item = Vector3d>>(mut iter: I) -> Vector3d {
         if let Some(first) = iter.next() {
             iter.fold(first, |a, b| a + b)
         } else {
@@ -73,13 +70,11 @@ impl Sum<Vector3d> for Vector3d {
     }
 }
 
-
-impl<'a>  Sum<&'a Vector3d> for Vector3d {
+impl<'a> Sum<&'a Vector3d> for Vector3d {
     fn sum<I: Iterator<Item = &'a Vector3d>>(iter: I) -> Vector3d {
         iter.cloned().sum()
     }
 }
-
 
 impl Neg for Vector3d {
     type Output = Vector3d;
@@ -88,14 +83,20 @@ impl Neg for Vector3d {
     }
 }
 
-impl<S: Clone> Mul<S> for Vector3d where f64: Mul<S, Output = f64> {
+impl<S: Clone> Mul<S> for Vector3d
+where
+    f64: Mul<S, Output = f64>,
+{
     type Output = Vector3d;
     fn mul(self, rhs: S) -> Self::Output {
         Vector3d::new(self.x * rhs.clone(), self.y * rhs.clone(), self.z * rhs)
     }
 }
 
-impl<S: Clone> Div<S> for Vector3d where f64: Div<S, Output = f64>{
+impl<S: Clone> Div<S> for Vector3d
+where
+    f64: Div<S, Output = f64>,
+{
     type Output = Vector3d;
     fn div(self, rhs: S) -> Self::Output {
         Vector3d::new(self.x / rhs.clone(), self.y / rhs.clone(), self.z / rhs)

@@ -51,7 +51,7 @@ pub struct CamData {
 impl Default for CamData {
     fn default() -> Self {
         Self {
-            canvas_width: WIDTH,  //247,  //1280, 498
+            canvas_width: WIDTH,   //247,  //1280, 498
             canvas_height: HEIGHT, //140, //720, 280
             fov: 30.0,
             transform: Ray {
