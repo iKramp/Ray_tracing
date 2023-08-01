@@ -12,8 +12,8 @@ pub fn main_fs(
     #[spirv(push_constant)] shader_consts: &ShaderConstants,
     output: &mut Vec4,
 ) {
-    let width = 1280.0; //shader_consts.width as f32;//commented until i get shader constants to work
-    let height = 720.0; //shader_consts.height as f32;
+    let width = shader_consts.width as f32;
+    let height = shader_consts.height as f32;
     let x = in_frag_coord.x / width;
     let y = in_frag_coord.y / height;
 
