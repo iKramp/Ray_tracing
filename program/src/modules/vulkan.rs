@@ -25,6 +25,7 @@ use super::data::{HEIGHT, WIDTH};
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
+use shared::ShaderConstants;
 
 /// Whether the validation layers should be enabled.
 const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
@@ -713,8 +714,16 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .blend_constants([0.0, 0.0, 0.0, 0.0]);
 
     // Layout
+    let push_constant_range = vk::PushConstantRange::builder()
+        .offset(0)
+        .size(std::mem::size_of::<ShaderConstants>() as u32)
+        .stage_flags(vk::ShaderStageFlags::ALL)
+        .build();
 
-    let layout_info = vk::PipelineLayoutCreateInfo::builder();
+
+    let layout_info = vk::PipelineLayoutCreateInfo::builder()
+        .push_constant_ranges(&[push_constant_range])
+        .build();
 
     data.pipeline_layout = device.create_pipeline_layout(&layout_info, None)?;
 
