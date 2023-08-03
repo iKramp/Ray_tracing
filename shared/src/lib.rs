@@ -17,26 +17,16 @@ use bytemuck::{Pod, Zeroable};
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 pub struct ShaderConstants {
-    pub width: u32,
-    pub height: u32,
-    pub time: f32,
-
-    pub cursor_x: f32,
-    pub cursor_y: f32,
-    pub drag_start_x: f32,
-    pub drag_start_y: f32,
-    pub drag_end_x: f32,
-    pub drag_end_y: f32,
-
-    /// Bit mask of the pressed buttons (0 = Left, 1 = Middle, 2 = Right).
-    pub mouse_button_pressed: u32,
-
-    /// The last time each mouse button (Left, Middle or Right) was pressed,
-    /// or `f32::NEG_INFINITY` for buttons which haven't been pressed yet.
-    ///
-    /// If this is the first frame after the press of some button, that button's
-    /// entry in `mouse_button_press_time` will exactly equal `time`.
-    pub mouse_button_press_time: [f32; 3],
+    pub canvas_height: usize,
+    pub canvas_width: usize,
+    pub fov: f32,
+    pub pos_x: f32,
+    pub pos_y: f32,
+    pub pos_z: f32,
+    pub orientation_x: f32,
+    pub orientation_y: f32,
+    pub orientation_z: f32,
+    pub samples: u32,
 }
 
 pub fn saturate(x: f32) -> f32 {
@@ -73,10 +63,36 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 
 
 //own code
+pub use vector3d::Vector3d;
+
 #[repr(C)]
 #[derive(Copy, Clone)]
-struct UniformBufferObject {
-    model: glam::Mat4,
-    view: glam::Mat4,
-    proj: glam::Mat4,
+pub struct PositionedVector3d {
+    pub pos: Vector3d,
+    pub orientation: Vector3d,
+}
+
+#[repr(C)]
+#[derive(Copy, Clone)]
+pub struct CamData {
+    pub canvas_width: usize,
+    pub canvas_height: usize,
+    pub fov: f32,
+    pub transform: PositionedVector3d,
+    pub samples: u32,
+}
+
+impl CamData {
+    fn new(size: (usize, usize)) -> Self {
+        Self {
+            canvas_width: size.0,  //247,  //1280, 498
+            canvas_height: size.1, //140, //720, 280
+            fov: 30.0,
+            transform: PositionedVector3d {
+                pos: Vector3d::new(0.0, 0.5, -5.0),
+                orientation: Vector3d::new(0.0, 0.0, 1.0),
+            },
+            samples: 1,
+        }
+    }
 }

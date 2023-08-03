@@ -1569,6 +1569,7 @@ version = "0.0.0"
 dependencies = [
  "bytemuck",
  "spirv-std",
+ "vector3d 0.0.0",
 ]
 
 [[package]]

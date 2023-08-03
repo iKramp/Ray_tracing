@@ -6,3 +6,4 @@ edition = "2018"
 [dependencies]
 spirv-std = { workspace = true }
 bytemuck = { version = "1.6.3", features = ["derive"] }
+vector3d = { path = "../vector3d" }

@@ -848,18 +848,17 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             .render_area(render_area)
             .clear_values(clear_values);
 
-        let push_constant = shared::ShaderConstants {
-            width: WIDTH as u32,
-            height: HEIGHT as u32,
-            time: 0.0,
-            cursor_x: 0.0,
-            cursor_y: 0.0,
-            drag_start_x: 0.0,
-            drag_start_y: 0.0,
-            drag_end_x: 0.0,
-            drag_end_y: 0.0,
-            mouse_button_pressed: 0,
-            mouse_button_press_time: [f32::NEG_INFINITY; 3],
+        let push_constant = ShaderConstants {
+            canvas_width: WIDTH,
+            canvas_height: HEIGHT,
+            fov: 90.0,
+            pos_x: 0.0,
+            pos_y: 0.0,
+            pos_z: 0.0,
+            orientation_x: 0.0,
+            orientation_y: 0.0,
+            orientation_z: 1.0,
+            samples: 1,
         };
 
         let push_constant = any_as_u8_slice(&push_constant);

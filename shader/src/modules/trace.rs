@@ -1,4 +1,4 @@
-use super::data::CamData;
+use shared::CamData;
 use super::hit::*;
 use super::material::*;
 //use crate::Resources;
@@ -6,14 +6,14 @@ use core::f64::consts::PI;
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
-pub fn claculate_vec_dir_from_cam(/*data: &CamData,*/ (pix_x, pix_y): (f32, f32)) -> Ray {
+pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
     //only capable up to 180 deg FOV TODO: this has to be rewritten probably. it works, but barely
-    let fov_rad: f32 = 90.0; //data.fov / 180.0 * PI;
+    let fov_rad: f32 = data.fov / 180.0 * PI as f32;
     let virt_canvas_height: f32 = (fov_rad / 2.0).tan();
 
-    let pix_offset_y = (-pix_y / 720.0/*data.canvas_height as f64*/ + 0.5) * virt_canvas_height;
-    let pix_offset_x = (pix_x / 1280.0/*data.canvas_height as f64*/
-        - 0.5 * (1280.0/*data.canvas_width as f64*/ / 720.0/*data.canvas_height as f64*/))
+    let pix_offset_y = (-pix_y / data.canvas_height as f32 + 0.5) * virt_canvas_height;
+    let pix_offset_x = (pix_x / data.canvas_height as f32
+        - 0.5 * (data.canvas_width as f32 / data.canvas_height as f32))
         * virt_canvas_height;
 
     //println!("{},{}   ", pix_offset_x, pix_offset_y);
@@ -21,8 +21,8 @@ pub fn claculate_vec_dir_from_cam(/*data: &CamData,*/ (pix_x, pix_y): (f32, f32)
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
-    let mut cam_vec = Ray::new(Vector3d::default(), Vector3d::new(1.0, 0.0, 0.0)); //data.transform;
-    cam_vec.normalize();
+    let mut cam_vec = data.transform;
+    cam_vec.orientation.normalize();
 
     let mut yaw: f32 = (cam_vec.orientation.x as f32).asin();
     if cam_vec.orientation.z < 0.0 {
@@ -36,8 +36,15 @@ pub fn claculate_vec_dir_from_cam(/*data: &CamData,*/ (pix_x, pix_y): (f32, f32)
     yaw += offset_yaw;
     pitch += offset_pitch;
 
+    if data.fov == 1.0 {
+        return Ray::new(
+            Vector3d::new(0.0, 0.0, 0.0),
+            Vector3d::new(0.0, f64::nan(), 0.0),
+        )
+    }
+
     Ray::new(
-        Vector3d::default(), /*data.transform.pos,*/
+        data.transform.pos,
         Vector3d::new(
             (yaw.sin() * pitch.cos()) as f64,
             pitch.sin() as f64,
@@ -110,13 +117,13 @@ impl Ray {
 
     pub fn get_color(
         (pix_x, pix_y): (usize, usize),
-        /*rng: &mut ThreadRng, */ /*data: &super::data::CamData,*/
+        /*rng: &mut ThreadRng, */ data: &CamData,
         /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
         //for _i in 0..data.samples {
         let mut vec = claculate_vec_dir_from_cam(
-            //&data,
+            &data,
             (
                 pix_x as f32, // + rng.gen_range(0.0..1.0),
                 pix_y as f32, // + rng.gen_range(0.0..1.0),
@@ -126,8 +133,10 @@ impl Ray {
         let mut temp = vec;
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
-        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
+        return Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor)
+            + Vector3d::new(255.0, 255.0, 255.0) * factor;
+        /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 
 
         return vec.orientation;

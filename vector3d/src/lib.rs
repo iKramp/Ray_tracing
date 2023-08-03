@@ -1,5 +1,7 @@
 #![no_std]
 
+use spirv_std::num_traits::Float;
+
 #[allow(non_camel_case_types)]
 #[derive(Copy, Clone)]
 pub struct Vector3d {
@@ -27,6 +29,16 @@ impl Vector3d {
             rhs.x.clone() * self.z.clone() - rhs.z * self.x.clone(),
             rhs.y * self.x - rhs.x * self.y,
         )
+    }
+
+    pub fn normalize(&mut self) {
+        let len = self.norm2().sqrt();
+        if len == 0.0 {
+            return;
+        }
+        self.x /= len;
+        self.y /= len;
+        self.z /= len;
     }
 }
 

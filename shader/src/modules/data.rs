@@ -35,29 +35,6 @@ use vector3d::Vector3d;
     ))
 }*/
 
-pub struct CamData {
-    pub canvas_width: usize,
-    pub canvas_height: usize,
-    pub fov: f64,
-    pub transform: Ray,
-    pub samples: u32,
-}
-
-impl CamData {
-    fn new(size: (usize, usize)) -> Self {
-        Self {
-            canvas_width: size.0,  //247,  //1280, 498
-            canvas_height: size.1, //140, //720, 280
-            fov: 30.0,
-            transform: Ray {
-                pos: Vector3d::new(0.0, 0.5, -5.0),
-                orientation: Vector3d::new(0.0, 0.0, 1.0),
-            },
-            samples: 1,
-        }
-    }
-}
-
 pub struct SceneInfo {
     pub sun_orientation: Vector3d,
     //pub hittable_objects: Vec<Box<dyn HitObject>>,

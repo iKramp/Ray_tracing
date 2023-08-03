@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 spirv-std = "0.8.0"
 shared = { path = "../shared" }
-#vector3d = "0.2.1"
 vector3d = { path = "../vector3d" }
 
 [lib]
