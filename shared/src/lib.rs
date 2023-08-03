@@ -70,3 +70,13 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     // Evaluate polynomial
     x * x * (3.0 - 2.0 * x)
 }
+
+
+//own code
+#[repr(C)]
+#[derive(Copy, Clone)]
+struct UniformBufferObject {
+    model: glam::Mat4,
+    view: glam::Mat4,
+    proj: glam::Mat4,
+}

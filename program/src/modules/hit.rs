@@ -131,12 +131,12 @@ impl HitObject for Sphere {
 
 pub struct Vertex {
     pub(crate) pos: Vector3d<f64>,
-    uv: (f64, f64),
+    _uv: (f64, f64),
 }
 
 impl Vertex {
-    pub fn new(pos: Vector3d<f64>, uv: (f64, f64)) -> Self {
-        Vertex { pos, uv }
+    pub fn new(pos: Vector3d<f64>, _uv: (f64, f64)) -> Self {
+        Vertex { pos, _uv }
     }
 }
 
@@ -144,7 +144,7 @@ impl Default for Vertex {
     fn default() -> Self {
         Vertex {
             pos: Vector3d::default(),
-            uv: (0.0, 0.0),
+            _uv: (0.0, 0.0),
         }
     }
 }

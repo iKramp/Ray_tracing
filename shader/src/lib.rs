@@ -1,9 +1,11 @@
 #![no_std]
 
 use shared::*;
+#[allow(unused_imports)]
 use spirv_std::glam::{vec2, vec4, Vec2, Vec4};
 use spirv_std::spirv;
 pub mod modules;
+#[allow(unused_imports)]
 use modules::{data::*, material::*};
 
 #[spirv(fragment())]
@@ -20,12 +22,12 @@ pub fn main_fs(
     let color =
         modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize)) / 255.0; //tracer gives colors from 0 to 255
 
-    /*if x >= 0.75 || y >= 0.75 || x < 0.25 || y < 0.25 {
+    if x >= 0.75 || y >= 0.75 || x < 0.25 || y < 0.25 {
         *output = Vec4::new(y, x, in_frag_coord.z + 0.5, in_frag_coord.w);
     } else {
         *output = Vec4::new(x, y, in_frag_coord.z / 255.0, in_frag_coord.w);
-    }*/
-    *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
+    }
+    //*output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
 }
 
 #[spirv(vertex)]

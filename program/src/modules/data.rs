@@ -85,6 +85,6 @@ pub struct Resources {
     pub earth: image::DynamicImage,
 }
 
-fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d<f64> {
+fn _col_from_frac(r: f64, g: f64, b: f64) -> Vector3d<f64> {
     Vector3d::new(r * 255.0, g * 255.0, b * 255.0)
 }

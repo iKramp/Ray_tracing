@@ -1,8 +1,6 @@
 pub mod modules;
-use crate::modules::RayReturnState::Ray;
 use anyhow::Result;
 use modules::{data::*, material::*};
-use rand::prelude::*;
 use std::rc::Rc;
 
 use winit::dpi::LogicalSize;
@@ -18,7 +16,7 @@ pub fn main() -> Result<()> {
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
     let _normal_material = Rc::new(NormalMaterial {});
-    let scene_info = SceneInfo::default();
+    let _scene_info = SceneInfo::default();
 
     //let (mut canvas , mut event_pump) = get_canvas_and_pump(data.canvas_width as u32, data.canvas_height as u32);
 
