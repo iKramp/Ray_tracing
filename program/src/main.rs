@@ -48,8 +48,8 @@ pub fn main() -> Result<()> {
                     start_time = std::time::Instant::now();
                 }
                 app.render(&window)
-
-            }.unwrap(),
+            }
+            .unwrap(),
             // Destroy our Vulkan app.
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,

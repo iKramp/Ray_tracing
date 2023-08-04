@@ -61,7 +61,6 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
-
 //own code
 pub use vector3d::Vector3d;
 

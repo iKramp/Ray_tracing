@@ -1,8 +1,8 @@
 use super::material::*;
 use super::trace::*;
 //use crate::Resources;
-use vector3d::Vector3d;
 use spirv_std::num_traits::Float;
+use vector3d::Vector3d;
 
 pub struct HitRecord {
     pub pos: Vector3d,
@@ -63,7 +63,7 @@ pub struct Sphere {
 }
 
 impl Sphere {
-    pub fn new(pos: Vector3d, radius: f64/*, material: Box<Rc<dyn Material>>*/) -> Self {
+    pub fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
         Sphere {
             pos,
             radius,

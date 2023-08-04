@@ -1,6 +1,6 @@
-use shared::CamData;
 use super::hit::*;
 use super::material::*;
+use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
 use spirv_std::num_traits::Float;
@@ -40,7 +40,7 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
         return Ray::new(
             Vector3d::new(0.0, 0.0, 0.0),
             Vector3d::new(0.0, f64::nan(), 0.0),
-        )
+        );
     }
 
     Ray::new(
@@ -117,7 +117,8 @@ impl Ray {
 
     pub fn get_color(
         (pix_x, pix_y): (usize, usize),
-        /*rng: &mut ThreadRng, */ data: &CamData,
+        /*rng: &mut ThreadRng, */
+        data: &CamData,
         /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
@@ -136,8 +137,7 @@ impl Ray {
         return Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor)
             + Vector3d::new(255.0, 255.0, 255.0) * factor;
         /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
-
+        + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 
         return vec.orientation;
         vec.normalize();

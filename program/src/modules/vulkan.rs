@@ -22,10 +22,10 @@ use winit::window::Window;
 
 use super::data::{HEIGHT, WIDTH};
 
+use shared::ShaderConstants;
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
-use shared::ShaderConstants;
 
 /// Whether the validation layers should be enabled.
 const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
@@ -195,6 +195,8 @@ struct AppData {
     render_finished_semaphores: Vec<vk::Semaphore>,
     in_flight_fences: Vec<vk::Fence>,
     images_in_flight: Vec<vk::Fence>,
+    //other
+    descriptor_set_layout: vk::DescriptorSetLayout,
 }
 
 //================================================
@@ -341,7 +343,9 @@ unsafe fn check_physical_device(
 
     let properties = instance.get_physical_device_properties(physical_device);
     if properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU {
-        return Err(anyhow!(SuitabilityError("Only discrete GPUs are supported.")));
+        return Err(anyhow!(SuitabilityError(
+            "Only discrete GPUs are supported."
+        )));
     }
 
     let support = SwapchainSupport::get(instance, data, physical_device)?;
@@ -520,8 +524,8 @@ fn get_swapchain_present_mode(present_modes: &[vk::PresentModeKHR]) -> vk::Prese
         .iter()
         .cloned()
         .find(|m| *m == vk::PresentModeKHR::MAILBOX)
-        .unwrap_or(vk::PresentModeKHR::IMMEDIATE)//max framerate
-        //.unwrap_or(vk::PresentModeKHR::FIFO)//vsync
+        .unwrap_or(vk::PresentModeKHR::IMMEDIATE) //max framerate
+                                                  //.unwrap_or(vk::PresentModeKHR::FIFO)//vsync
 }
 
 fn get_swapchain_extent(window: &Window, capabilities: vk::SurfaceCapabilitiesKHR) -> vk::Extent2D {
@@ -721,11 +725,28 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .build();
 
 
+
+    let bindings = [vk::DescriptorSetLayoutBinding::builder()
+        .binding(0)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::ALL)
+        .build()];
+
+    let descriptor_set_layout_create_info = vk::DescriptorSetLayoutCreateInfo::builder()
+        .bindings(&bindings);
+
+    let descriptor_set_layout =
+        device.create_descriptor_set_layout(&descriptor_set_layout_create_info, None)?;
+
     let layout_info = vk::PipelineLayoutCreateInfo::builder()
         .push_constant_ranges(&[push_constant_range])
+        .set_layouts(&[descriptor_set_layout])
         .build();
 
     data.pipeline_layout = device.create_pipeline_layout(&layout_info, None)?;
+
+    data.descriptor_set_layout = descriptor_set_layout;
 
     // Create
 
@@ -875,6 +896,34 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             vk::ShaderStageFlags::ALL,
             0,
             push_constant,
+        );
+
+
+
+        let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::builder()
+            .max_sets(1)
+            .pool_sizes(&[vk::DescriptorPoolSize::builder()
+                .type_(vk::DescriptorType::STORAGE_BUFFER)
+                .descriptor_count(1)
+                .build()])
+            .build();
+
+        let descriptor_pool = device.create_descriptor_pool(&descriptor_pool_create_info, None)?;
+
+        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::builder()
+            .descriptor_pool(descriptor_pool)
+            .set_layouts(&[data.descriptor_set_layout])
+            .build();
+
+        let descriptor_sets = device.allocate_descriptor_sets(&descriptor_set_allocate_info)?;
+
+        device.cmd_bind_descriptor_sets(
+            *command_buffer,
+            vk::PipelineBindPoint::GRAPHICS,
+            data.pipeline_layout,
+            0,
+            &[descriptor_sets[0]],
+            &[],
         );
         device.cmd_draw(*command_buffer, 3, 1, 0, 0);
         device.cmd_end_render_pass(*command_buffer);
