@@ -1,6 +1,7 @@
-use super::material::*;
+//use super::material::*;
 use super::trace::*;
 //use crate::Resources;
+#[allow(unused_imports)]//actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
@@ -129,7 +130,9 @@ impl HitObject for Sphere {
 }
 
 pub struct Vertex {
+    #[allow(dead_code)]
     pub(crate) pos: Vector3d,
+    #[allow(dead_code)]
     uv: (f64, f64),
 }
 
@@ -168,7 +171,7 @@ impl Mesh {
     }
 }*/
 
-fn triangle_ray_intersect(
+/*fn triangle_ray_intersect(
     p0: Vector3d,
     p1: Vector3d,
     p2: Vector3d,
@@ -211,7 +214,7 @@ fn triangle_ray_intersect(
     }
 
     Some(t)
-}
+}*/
 
 /*impl HitObject for Mesh {
     fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {

@@ -80,7 +80,7 @@ impl Ray {
 
     pub fn trace_ray(
         &mut self,
-        scene_info: &super::data::SceneInfo,
+        //scene_info: &super::data::SceneInfo,
         ray_depth: u32,
         //rng: &mut ThreadRng,
         /*resources: Rc<Resources>,*/
@@ -121,10 +121,10 @@ impl Ray {
         data: &CamData,
         /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
     ) -> Vector3d {
-        let mut color = Vector3d::new(0.0, 0.0, 0.0);
+        //let mut color = Vector3d::new(0.0, 0.0, 0.0);
         //for _i in 0..data.samples {
-        let mut vec = claculate_vec_dir_from_cam(
-            &data,
+        let vec = claculate_vec_dir_from_cam(
+            data,
             (
                 pix_x as f32, // + rng.gen_range(0.0..1.0),
                 pix_y as f32, // + rng.gen_range(0.0..1.0),
@@ -134,20 +134,20 @@ impl Ray {
         let mut temp = vec;
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
-        return Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor)
-            + Vector3d::new(255.0, 255.0, 255.0) * factor;
+        Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor)
+            + Vector3d::new(255.0, 255.0, 255.0) * factor
         /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
         + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 
-        return vec.orientation;
+        /*return vec.orientation;
         vec.normalize();
-        //color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
-        //}
+        color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
+        }
         color = color / 1.0/*data.samples as f64*/ / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
         color.y = color.y.sqrt().clamp(0.0, 0.999999999);
         color.z = color.z.sqrt().clamp(0.0, 0.999999999);
         color = color * 256.0;
-        color
+        color*/
     }
 }

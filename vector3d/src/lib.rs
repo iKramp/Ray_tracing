@@ -1,5 +1,6 @@
 #![no_std]
 
+#[allow(unused_imports)]//actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 
 #[allow(non_camel_case_types)]
@@ -20,13 +21,13 @@ impl Vector3d {
     }
 
     pub fn norm2(self) -> f64 {
-        self.x.clone() * self.x + self.y.clone() * self.y + self.z.clone() * self.z
+        self.x * self.x + self.y * self.y + self.z * self.z
     }
 
     pub fn cross(self, rhs: Vector3d) -> Vector3d {
         Vector3d::new(
-            rhs.z.clone() * self.y.clone() - rhs.y.clone() * self.z.clone(),
-            rhs.x.clone() * self.z.clone() - rhs.z * self.x.clone(),
+            rhs.z * self.y - rhs.y * self.z,
+            rhs.x * self.z - rhs.z * self.x,
             rhs.y * self.x - rhs.x * self.y,
         )
     }

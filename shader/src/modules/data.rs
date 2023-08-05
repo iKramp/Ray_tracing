@@ -1,6 +1,6 @@
-use super::hit::HitObject;
-use super::trace::Ray;
-use spirv_std::num_traits::Float;
+//use super::hit::HitObject;
+//use super::trace::Ray;
+//use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
 /*fn parse_obj_file(path: &str, scale: f64, transform: vector3d) -> Box<dyn HitObject> {
@@ -57,6 +57,6 @@ pub struct Resources {
     //pub earth: image::DynamicImage,
 }
 
-fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d {
+/*fn col_from_frac(r: f64, g: f64, b: f64) -> Vector3d {
     Vector3d::new(r * 255.0, g * 255.0, b * 255.0)
-}
+}*/

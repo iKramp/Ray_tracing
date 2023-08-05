@@ -644,8 +644,8 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
     let frag = SHADER;
     let vert = SHADER;
 
-    let vert_shader_module = create_shader_module(device, &vert[..])?;
-    let frag_shader_module = create_shader_module(device, &frag[..])?;
+    let vert_shader_module = create_shader_module(device, vert)?;
+    let frag_shader_module = create_shader_module(device, frag)?;
 
     let vert_stage = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::VERTEX)

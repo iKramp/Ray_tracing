@@ -1,5 +1,6 @@
 use super::hit::*;
 //use image::GenericImageView;
+#[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
@@ -77,7 +78,7 @@ impl Material for DiffuseMaterial {
 
     fn get_next_ray_dir(
         &self,
-        record: &HitRecord, /*, rng: &mut ThreadRng*/
+        _record: &HitRecord, /*, rng: &mut ThreadRng*/
     ) -> RayReturnState {
         RayReturnState::Stop
         //diffuse_ray_direction(record, rng)
@@ -86,6 +87,7 @@ impl Material for DiffuseMaterial {
 
 pub struct MetalMaterial {
     pub color: Vector3d,
+    #[allow(dead_code)]
     roughness: f64,
 }
 
@@ -102,7 +104,7 @@ impl Material for MetalMaterial {
 
     fn get_next_ray_dir(
         &self,
-        record: &HitRecord, /*, rng: &mut ThreadRng*/
+        _record: &HitRecord, /*, rng: &mut ThreadRng*/
     ) -> RayReturnState {
         RayReturnState::Stop
         /*let old_ray = record.ray.orientation;
@@ -226,7 +228,7 @@ impl Material for RefractiveMaterial {
 
     fn get_next_ray_dir(
         &self,
-        record: &HitRecord, /*, rng: &mut ThreadRng*/
+        _record: &HitRecord, /*, rng: &mut ThreadRng*/
     ) -> RayReturnState {
         RayReturnState::Stop
         /*let refraction_ratio = if record.front_face {
@@ -256,7 +258,7 @@ impl UVMaterial {
 }
 
 impl Material for UVMaterial {
-    fn get_color(&self, record: &HitRecord, next_ray_color: Vector3d) -> Vector3d {
+    fn get_color(&self, _record: &HitRecord, _next_ray_color: Vector3d) -> Vector3d {
         /*let image = &record.resources.earth;
         let uv: (f64, f64) = (
             (record.uv.0) * image.width() as f64,
@@ -275,7 +277,7 @@ impl Material for UVMaterial {
 
     fn get_next_ray_dir(
         &self,
-        record: &HitRecord, /*, rng: &mut ThreadRng*/
+        _record: &HitRecord, /*, rng: &mut ThreadRng*/
     ) -> RayReturnState {
         RayReturnState::Stop
         //diffuse_ray_direction(record, rng)

@@ -80,18 +80,3 @@ pub struct CamData {
     pub transform: PositionedVector3d,
     pub samples: u32,
 }
-
-impl CamData {
-    fn new(size: (usize, usize)) -> Self {
-        Self {
-            canvas_width: size.0,  //247,  //1280, 498
-            canvas_height: size.1, //140, //720, 280
-            fov: 30.0,
-            transform: PositionedVector3d {
-                pos: Vector3d::new(0.0, 0.5, -5.0),
-                orientation: Vector3d::new(0.0, 0.0, 1.0),
-            },
-            samples: 1,
-        }
-    }
-}

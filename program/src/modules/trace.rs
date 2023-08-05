@@ -123,7 +123,7 @@ impl Ray {
         for pix_y in 0..data.canvas_height {
             for pix_x in 0..data.canvas_width {
                 let color =
-                    Self::get_color((pix_x, pix_y), &mut rng, &data, &scene_info, &resources);
+                    Self::get_color((pix_x, pix_y), &mut rng, data, scene_info, &resources);
                 canvas.set_draw_color(sdl2::pixels::Color::RGB(
                     color.x as u8,
                     color.y as u8,
@@ -156,14 +156,14 @@ impl Ray {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
         for _i in 0..data.samples {
             let mut vec = claculate_vec_dir_from_cam(
-                &data,
+                data,
                 (
                     pix_x as f64 + rng.gen_range(0.0..1.0),
                     pix_y as f64 + rng.gen_range(0.0..1.0),
                 ),
             );
             vec.normalize();
-            color = color + vec.trace_ray(&scene_info, 5, rng, resources.clone());
+            color = color + vec.trace_ray(scene_info, 5, rng, resources.clone());
         }
         color = color / data.samples as f64 / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
