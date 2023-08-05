@@ -16,8 +16,6 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
         - 0.5 * (data.canvas_width as f32 / data.canvas_height as f32))
         * virt_canvas_height;
 
-    //println!("{},{}   ", pix_offset_x, pix_offset_y);
-
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
