@@ -38,7 +38,7 @@ pub fn main_fs(
     let data = CamData {
         transform: PositionedVector3d {
             pos: Vector3d::new(0.0, 0.0, 0.0),
-            orientation: Vector3d::new(0.0, 1.0, 0.0),
+            orientation: Vector3d::new(0.0, 0.0, 1.0),
         },
         fov: 90.0,
         canvas_width: 1280,
@@ -50,7 +50,7 @@ pub fn main_fs(
         modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize), &data)
             / 255.0; //tracer gives colors from 0 to 255
 
-    if color.x > 1.0 || color.y > 1.0 || color.z > 1.0 {
+    if color.x.is_nan() {
         //red for testing
         *output = Vec4::new(1.0, 0.0, 0.0, 1.0);
         return;
