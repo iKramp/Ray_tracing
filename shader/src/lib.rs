@@ -18,12 +18,6 @@ pub fn main_fs(
         modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize), &data)
             / 255.0; //tracer gives colors from 0 to 255
 
-    if color.x.is_nan() {
-        //red for testing
-        *output = Vec4::new(1.0, 0.0, 0.0, 1.0);
-        return;
-    }
-
     *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
 }
 
