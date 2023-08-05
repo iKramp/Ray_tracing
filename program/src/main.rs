@@ -17,10 +17,10 @@ pub fn main() -> Result<()> {
     let data = CamData {
         pos: glam::Vec4::new(0.0, 0.0, 0.0, 0.0),
         orientation: glam::Vec4::new(0.0, 0.0, 1.0, 0.0),
-        canvas_width: WIDTH,
-        canvas_height: HEIGHT,
+        canvas_width: WIDTH as u32,
+        canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 0,
+        samples: 1,
     };
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
@@ -34,8 +34,8 @@ pub fn main() -> Result<()> {
     let window = WindowBuilder::new()
         .with_title("Ray Tracer (Vulkan)")
         .with_inner_size(LogicalSize::new(
-            data.canvas_width as u32,
-            data.canvas_height as u32,
+            data.canvas_width,
+            data.canvas_height,
         ))
         .with_resizable(false)
         .build(&event_loop)?;

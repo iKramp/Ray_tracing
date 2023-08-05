@@ -36,13 +36,6 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
     yaw += offset_yaw;
     pitch += offset_pitch;
 
-    if data.fov == 1.0 {
-        return Ray::new(
-            Vector3d::new(0.0, 0.0, 0.0),
-            Vector3d::new(0.0, f64::nan(), 0.0),
-        );
-    }
-
     Ray::new(
         Vector3d::new(data.pos.x as f64, data.pos.y as f64, data.pos.z as f64),
         Vector3d::new(
@@ -135,8 +128,10 @@ impl Ray {
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
 
-        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-        + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
+        return Vector3d::new(255.0, 255.0, 255.0)
+
+        /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 
         /*return vec.orientation;
         vec.normalize();
