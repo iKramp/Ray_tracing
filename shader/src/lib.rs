@@ -36,10 +36,12 @@ pub fn main_fs(
 
     //default data
     let data = CamData {
-        transform: PositionedVector3d {
+        /*transform: PositionedVector3d {
             pos: Vector3d::new(0.0, 0.0, 0.0),
             orientation: Vector3d::new(0.0, 0.0, 1.0),
-        },
+        },*/
+        pos: Vec4::new(0.0, 0.0, 0.0, 0.0),
+        orientation: Vec4::new(0.0, 0.0, 1.0, 0.0),
         fov: 90.0,
         canvas_width: 1280,
         canvas_height: 720,

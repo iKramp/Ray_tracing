@@ -21,15 +21,15 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
-    let mut cam_vec = data.transform;
-    cam_vec.orientation.normalize();
+    let mut cam_vec = data.orientation;
+    let cam_vec = cam_vec.normalize();
 
-    let mut yaw: f32 = (cam_vec.orientation.x as f32).asin();
-    if cam_vec.orientation.z < 0.0 {
+    let mut yaw: f32 = (cam_vec.x).asin();
+    if cam_vec.z < 0.0 {
         yaw = PI as f32 - yaw;
     }
-    let mut pitch: f32 = (cam_vec.orientation.y as f32).asin();
-    if cam_vec.orientation.z < 0.0 {
+    let mut pitch: f32 = (cam_vec.y).asin();
+    if cam_vec.z < 0.0 {
         pitch = PI as f32 - pitch;
     }
 
@@ -44,7 +44,7 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
     }
 
     Ray::new(
-        data.transform.pos,
+        Vector3d::new(data.pos.x as f64, data.pos.y as f64, data.pos.z as f64),
         Vector3d::new(
             (yaw.sin() * pitch.cos()) as f64,
             pitch.sin() as f64,

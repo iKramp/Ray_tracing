@@ -74,9 +74,10 @@ pub struct PositionedVector3d {
 #[repr(C)]
 #[derive(Copy, Clone)]
 pub struct CamData {
+    pub pos: glam::Vec4,
+    pub orientation: glam::Vec4,
     pub canvas_width: usize,
     pub canvas_height: usize,
     pub fov: f32,
-    pub transform: PositionedVector3d,
     pub samples: u32,
 }

@@ -15,13 +15,11 @@ pub fn main() -> Result<()> {
     pretty_env_logger::init();
 
     let data = CamData {
+        pos: glam::Vec4::new(0.0, 0.0, 0.0, 0.0),
+        orientation: glam::Vec4::new(0.0, 0.0, 1.0, 0.0),
         canvas_width: WIDTH,
         canvas_height: HEIGHT,
         fov: 90.0,
-        transform: PositionedVector3d {
-            pos: Vector3d::new(0.0, 0.0, 0.0),
-            orientation: Vector3d::new(0.0, 1.0, 0.0),
-        },
         samples: 0,
     };
 
