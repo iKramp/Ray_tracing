@@ -10,9 +10,11 @@
 use std::collections::HashSet;
 use std::ffi::CStr;
 use std::os::raw::c_void;
+use std::vec;
 
 use anyhow::{anyhow, Result};
 use log::*;
+use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::prelude::v1_0::*;
@@ -20,9 +22,7 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
-use super::data::{HEIGHT, WIDTH};
-
-use shared::ShaderConstants;
+use shared::*;
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
@@ -68,9 +68,11 @@ impl App {
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
         create_render_pass(&instance, &device, &mut data)?;
+        create_descriptor_set_layout(&device, &mut data)?;
         create_pipeline(&device, &mut data)?;
         create_framebuffers(&device, &mut data)?;
         create_command_pool(&instance, &device, &mut data)?;
+        create_uniform_buffers(&instance, &device, &mut data)?;
         create_command_buffers(&device, &mut data)?;
         create_sync_objects(&device, &mut data)?;
         Ok(Self {
@@ -83,21 +85,24 @@ impl App {
     }
 
     /// Renders a frame for our Vulkan app.
-    pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
+    pub(crate) unsafe fn render(&mut self, window: &Window, cam_data: CamData) -> Result<()> {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
         self.device
             .wait_for_fences(&[in_flight_fence], true, u64::max_value())?;
 
-        let image_index = self
-            .device
-            .acquire_next_image_khr(
-                self.data.swapchain,
-                u64::MAX,
-                self.data.image_available_semaphores[self.frame],
-                vk::Fence::null(),
-            )?
-            .0 as usize;
+        let result = self.device.acquire_next_image_khr(
+            self.data.swapchain,
+            u64::MAX,
+            self.data.image_available_semaphores[self.frame],
+            vk::Fence::null(),
+        );
+
+        let image_index = match result {
+            Ok((image_index, _)) => image_index as usize,
+            Err(vk::ErrorCode::OUT_OF_DATE_KHR) => return self.recreate_swapchain(window),
+            Err(e) => return Err(anyhow!(e)),
+        };
 
         let image_in_flight = self.data.images_in_flight[image_index];
         if !image_in_flight.is_null() {
@@ -106,6 +111,8 @@ impl App {
         }
 
         self.data.images_in_flight[image_index] = in_flight_fence;
+
+        self.update_uniform_buffer(image_index, cam_data)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
         let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -129,11 +136,57 @@ impl App {
             .swapchains(swapchains)
             .image_indices(image_indices);
 
-        self.device
-            .queue_present_khr(self.data.present_queue, &present_info)?;
+        let result = self
+            .device
+            .queue_present_khr(self.data.present_queue, &present_info);
+        let changed = result == Ok(vk::SuccessCode::SUBOPTIMAL_KHR)
+            || result == Err(vk::ErrorCode::OUT_OF_DATE_KHR);
+        if changed {
+            self.recreate_swapchain(window)?;
+        } else if let Err(e) = result {
+            return Err(anyhow!(e));
+        }
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
 
+        Ok(())
+    }
+
+    unsafe fn update_uniform_buffer(&self, image_index: usize, data: CamData) -> Result<()> {
+        // MVP
+
+        let ubo = data;
+
+        // Copy
+
+        let memory = self.device.map_memory(
+            self.data.uniform_buffers_memory[image_index],
+            0,
+            std::mem::size_of::<CamData>() as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+
+        memcpy(&ubo, memory.cast(), 1);
+
+        self.device
+            .unmap_memory(self.data.uniform_buffers_memory[image_index]);
+
+        Ok(())
+    }
+
+    /// Recreates the swapchain for our Vulkan app.
+    #[rustfmt::skip]
+    unsafe fn recreate_swapchain(&mut self, window: &Window) -> Result<()> {
+        self.device.device_wait_idle()?;
+        self.destroy_swapchain();
+        create_swapchain(window, &self.instance, &self.device, &mut self.data)?;
+        create_swapchain_image_views(&self.device, &mut self.data)?;
+        create_render_pass(&self.instance, &self.device, &mut self.data)?;
+        create_pipeline(&self.device, &mut self.data)?;
+        create_framebuffers(&self.device, &mut self.data)?;
+        create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
+        create_command_buffers(&self.device, &mut self.data)?;
+        self.data.images_in_flight.resize(self.data.swapchain_images.len(), vk::Fence::null());
         Ok(())
     }
 
@@ -142,16 +195,13 @@ impl App {
     pub(crate) unsafe fn destroy(&mut self) {
         self.device.device_wait_idle().unwrap();
 
+        self.destroy_swapchain();
+
         self.data.in_flight_fences.iter().for_each(|f| self.device.destroy_fence(*f, None));
         self.data.render_finished_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));
         self.data.image_available_semaphores.iter().for_each(|s| self.device.destroy_semaphore(*s, None));
         self.device.destroy_command_pool(self.data.command_pool, None);
-        self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
-        self.device.destroy_pipeline(self.data.pipeline, None);
-        self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
-        self.device.destroy_render_pass(self.data.render_pass, None);
-        self.data.swapchain_image_views.iter().for_each(|v| self.device.destroy_image_view(*v, None));
-        self.device.destroy_swapchain_khr(self.data.swapchain, None);
+        self.device.destroy_descriptor_set_layout(self.data.descriptor_set_layout, None);
         self.device.destroy_device(None);
         self.instance.destroy_surface_khr(self.data.surface, None);
 
@@ -160,6 +210,20 @@ impl App {
         }
 
         self.instance.destroy_instance(None);
+    }
+
+    /// Destroys the parts of our Vulkan app related to the swapchain.
+    #[rustfmt::skip]
+    unsafe fn destroy_swapchain(&mut self) {
+        self.device.free_command_buffers(self.data.command_pool, &self.data.command_buffers);
+        self.data.uniform_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
+        self.data.uniform_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
+        self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
+        self.device.destroy_pipeline(self.data.pipeline, None);
+        self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
+        self.device.destroy_render_pass(self.data.render_pass, None);
+        self.data.swapchain_image_views.iter().for_each(|v| self.device.destroy_image_view(*v, None));
+        self.device.destroy_swapchain_khr(self.data.swapchain, None);
     }
 }
 
@@ -182,10 +246,14 @@ struct AppData {
     swapchain_image_views: Vec<vk::ImageView>,
     // Pipeline
     render_pass: vk::RenderPass,
+    descriptor_set_layout: vk::DescriptorSetLayout,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
     // Framebuffers
     framebuffers: Vec<vk::Framebuffer>,
+    //ubo buffers
+    uniform_buffers: Vec<vk::Buffer>,
+    uniform_buffers_memory: Vec<vk::DeviceMemory>,
     // Command Pool
     command_pool: vk::CommandPool,
     // Command Buffers
@@ -196,7 +264,6 @@ struct AppData {
     in_flight_fences: Vec<vk::Fence>,
     images_in_flight: Vec<vk::Fence>,
     //other
-    descriptor_set_layout: vk::DescriptorSetLayout,
 }
 
 //================================================
@@ -718,33 +785,11 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .blend_constants([0.0, 0.0, 0.0, 0.0]);
 
     // Layout
-    let push_constant_range = vk::PushConstantRange::builder()
-        .offset(0)
-        .size(std::mem::size_of::<ShaderConstants>() as u32)
-        .stage_flags(vk::ShaderStageFlags::ALL)
-        .build();
 
-    let bindings = [vk::DescriptorSetLayoutBinding::builder()
-        .binding(0)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::ALL)
-        .build()];
-
-    let descriptor_set_layout_create_info =
-        vk::DescriptorSetLayoutCreateInfo::builder().bindings(&bindings);
-
-    let descriptor_set_layout =
-        device.create_descriptor_set_layout(&descriptor_set_layout_create_info, None)?;
-
-    let layout_info = vk::PipelineLayoutCreateInfo::builder()
-        .push_constant_ranges(&[push_constant_range])
-        .set_layouts(&[descriptor_set_layout])
-        .build();
+    let set_layouts = &[data.descriptor_set_layout];
+    let layout_info = vk::PipelineLayoutCreateInfo::builder().set_layouts(set_layouts);
 
     data.pipeline_layout = device.create_pipeline_layout(&layout_info, None)?;
-
-    data.descriptor_set_layout = descriptor_set_layout;
 
     // Create
 
@@ -867,65 +912,32 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             .render_area(render_area)
             .clear_values(clear_values);
 
-        let push_constant = ShaderConstants {
-            canvas_width: WIDTH,
-            canvas_height: HEIGHT,
-            fov: 90.0,
-            pos_x: 0.0,
-            pos_y: 0.0,
-            pos_z: 0.0,
-            orientation_x: 0.0,
-            orientation_y: 0.0,
-            orientation_z: 1.0,
-            samples: 1,
-        };
-
-        let push_constant = any_as_u8_slice(&push_constant);
-
         device.cmd_begin_render_pass(*command_buffer, &info, vk::SubpassContents::INLINE);
         device.cmd_bind_pipeline(
             *command_buffer,
             vk::PipelineBindPoint::GRAPHICS,
             data.pipeline,
         );
-        device.cmd_push_constants(
-            *command_buffer,
-            data.pipeline_layout,
-            vk::ShaderStageFlags::ALL,
-            0,
-            push_constant,
-        );
-
-        let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::builder()
-            .max_sets(1)
-            .pool_sizes(&[vk::DescriptorPoolSize::builder()
-                .type_(vk::DescriptorType::STORAGE_BUFFER)
-                .descriptor_count(1)
-                .build()])
-            .build();
-
-        let descriptor_pool = device.create_descriptor_pool(&descriptor_pool_create_info, None)?;
-
-        let descriptor_set_allocate_info = vk::DescriptorSetAllocateInfo::builder()
-            .descriptor_pool(descriptor_pool)
-            .set_layouts(&[data.descriptor_set_layout])
-            .build();
-
-        let descriptor_sets = device.allocate_descriptor_sets(&descriptor_set_allocate_info)?;
-
-        device.cmd_bind_descriptor_sets(
-            *command_buffer,
-            vk::PipelineBindPoint::GRAPHICS,
-            data.pipeline_layout,
-            0,
-            &[descriptor_sets[0]],
-            &[],
-        );
         device.cmd_draw(*command_buffer, 3, 1, 0, 0);
         device.cmd_end_render_pass(*command_buffer);
 
         device.end_command_buffer(*command_buffer)?;
     }
+
+    Ok(())
+}
+
+unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> Result<()> {
+    let ubo_binding = vk::DescriptorSetLayoutBinding::builder()
+        .binding(0)
+        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+    let bindings = &[ubo_binding];
+    let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
+
+    data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
 
     Ok(())
 }
@@ -1002,6 +1014,31 @@ impl QueueFamilyIndices {
     }
 }
 
+unsafe fn create_uniform_buffers(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
+    data.uniform_buffers.clear();
+    data.uniform_buffers_memory.clear();
+
+    for _ in 0..data.swapchain_images.len() {
+        let (uniform_buffer, uniform_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            std::mem::size_of::<CamData>() as u64,
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.uniform_buffers.push(uniform_buffer);
+        data.uniform_buffers_memory.push(uniform_buffer_memory);
+    }
+
+    Ok(())
+}
+
 #[derive(Clone, Debug)]
 struct SwapchainSupport {
     capabilities: vk::SurfaceCapabilitiesKHR,
@@ -1028,4 +1065,57 @@ impl SwapchainSupport {
 
 unsafe fn any_as_u8_slice<T: Sized>(p: &T) -> &[u8] {
     ::std::slice::from_raw_parts((p as *const T).cast::<u8>(), ::std::mem::size_of::<T>())
+}
+
+unsafe fn create_buffer(
+    instance: &Instance,
+    device: &Device,
+    data: &AppData,
+    size: vk::DeviceSize,
+    usage: vk::BufferUsageFlags,
+    properties: vk::MemoryPropertyFlags,
+) -> Result<(vk::Buffer, vk::DeviceMemory)> {
+    // Buffer
+
+    let buffer_info = vk::BufferCreateInfo::builder()
+        .size(size)
+        .usage(usage)
+        .sharing_mode(vk::SharingMode::EXCLUSIVE);
+
+    let buffer = device.create_buffer(&buffer_info, None)?;
+
+    // Memory
+
+    let requirements = device.get_buffer_memory_requirements(buffer);
+
+    let memory_info = vk::MemoryAllocateInfo::builder()
+        .allocation_size(requirements.size)
+        .memory_type_index(get_memory_type_index(
+            instance,
+            data,
+            properties,
+            requirements,
+        )?);
+
+    let buffer_memory = device.allocate_memory(&memory_info, None)?;
+
+    device.bind_buffer_memory(buffer, buffer_memory, 0)?;
+
+    Ok((buffer, buffer_memory))
+}
+
+unsafe fn get_memory_type_index(
+    instance: &Instance,
+    data: &AppData,
+    properties: vk::MemoryPropertyFlags,
+    requirements: vk::MemoryRequirements,
+) -> Result<u32> {
+    let memory = instance.get_physical_device_memory_properties(data.physical_device);
+    (0..memory.memory_type_count)
+        .find(|i| {
+            let suitable = (requirements.memory_type_bits & (1 << i)) != 0;
+            let memory_type = memory.memory_types[*i as usize];
+            suitable && memory_type.property_flags.contains(properties)
+        })
+        .ok_or_else(|| anyhow!("Failed to find suitable memory type."))
 }

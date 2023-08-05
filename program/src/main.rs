@@ -1,22 +1,34 @@
 pub mod modules;
 use anyhow::Result;
-use modules::{data::*, material::*};
 use std::rc::Rc;
 
+use shared::*;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
+const WIDTH: usize = 1280;
+const HEIGHT: usize = 720;
+
 pub fn main() -> Result<()> {
     pretty_env_logger::init();
 
-    let data = CamData::default();
+    let data = CamData {
+        canvas_width: WIDTH,
+        canvas_height: HEIGHT,
+        fov: 90.0,
+        transform: PositionedVector3d {
+            pos: Vector3d::new(0.0, 0.0, 0.0),
+            orientation: Vector3d::new(0.0, 1.0, 0.0),
+        },
+        samples: 0,
+    };
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
-    let _normal_material = Rc::new(NormalMaterial {});
-    let _scene_info = SceneInfo::default();
+    //let normal_material = Rc::new(NormalMaterial {});
+    //let scene_info = SceneInfo::default();
 
     //let (mut canvas , mut event_pump) = get_canvas_and_pump(data.canvas_width as u32, data.canvas_height as u32);
 
@@ -47,7 +59,7 @@ pub fn main() -> Result<()> {
                     frame_count = 0;
                     start_time = std::time::Instant::now();
                 }
-                app.render(&window)
+                app.render(&window, data)
             }
             .unwrap(),
             // Destroy our Vulkan app.

@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
-vector3d = "0.2.1"
+vector3d = { path = "../vector3d" }
 image = "0.24.6"
 vulkanalia = { version = "=0.21.0", features = ["libloading", "provisional", "window"] }
 winit = "0.28.6"

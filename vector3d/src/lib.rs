@@ -4,7 +4,7 @@
 use spirv_std::num_traits::Float;
 
 #[allow(non_camel_case_types)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct Vector3d {
     pub x: f64,
     pub y: f64,

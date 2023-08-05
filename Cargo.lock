@@ -1309,7 +1309,7 @@ dependencies = [
  "shared",
  "spirv-builder",
  "thiserror",
- "vector3d 0.2.1",
+ "vector3d",
  "vulkanalia",
  "winit",
 ]
@@ -1560,7 +1560,7 @@ version = "0.1.0"
 dependencies = [
  "shared",
  "spirv-std",
- "vector3d 0.0.0",
+ "vector3d",
 ]
 
 [[package]]
@@ -1569,7 +1569,7 @@ version = "0.0.0"
 dependencies = [
  "bytemuck",
  "spirv-std",
- "vector3d 0.0.0",
+ "vector3d",
 ]
 
 [[package]]
@@ -1875,16 +1875,6 @@ name = "vector3d"
 version = "0.0.0"
 dependencies = [
  "spirv-std",
-]
-
-[[package]]
-name = "vector3d"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbd7eb407bb0fe64c8abd07288e62029e142815f4c11eb9eba67fa87f07c87e2"
-dependencies = [
- "serde",
- "serde_derive",
 ]
 
 [[package]]
