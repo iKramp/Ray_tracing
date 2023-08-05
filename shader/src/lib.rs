@@ -53,6 +53,7 @@ pub fn main_fs(
     if color.x > 1.0 || color.y > 1.0 || color.z > 1.0 {
         //red for testing
         *output = Vec4::new(1.0, 0.0, 0.0, 1.0);
+        return;
     }
 
     *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
