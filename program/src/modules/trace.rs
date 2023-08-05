@@ -122,8 +122,7 @@ impl Ray {
 
         for pix_y in 0..data.canvas_height {
             for pix_x in 0..data.canvas_width {
-                let color =
-                    Self::get_color((pix_x, pix_y), &mut rng, data, scene_info, &resources);
+                let color = Self::get_color((pix_x, pix_y), &mut rng, data, scene_info, &resources);
                 canvas.set_draw_color(sdl2::pixels::Color::RGB(
                     color.x as u8,
                     color.y as u8,

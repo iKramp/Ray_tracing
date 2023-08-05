@@ -134,8 +134,7 @@ impl Ray {
         let mut temp = vec;
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
-        Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor)
-            + Vector3d::new(255.0, 255.0, 255.0) * factor
+        Vector3d::new(0.0, 0.0, 0.0) * (1.0 - factor) + Vector3d::new(255.0, 255.0, 255.0) * factor
         /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
         + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 

@@ -1,7 +1,7 @@
 //use super::material::*;
 use super::trace::*;
 //use crate::Resources;
-#[allow(unused_imports)]//actually used for .sqrt because we don't allow std
+#[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 

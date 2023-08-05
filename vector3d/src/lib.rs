@@ -1,6 +1,6 @@
 #![no_std]
 
-#[allow(unused_imports)]//actually used for .sqrt because we don't allow std
+#[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 
 #[allow(non_camel_case_types)]

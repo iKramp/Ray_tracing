@@ -724,8 +724,6 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .stage_flags(vk::ShaderStageFlags::ALL)
         .build();
 
-
-
     let bindings = [vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
@@ -733,8 +731,8 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .stage_flags(vk::ShaderStageFlags::ALL)
         .build()];
 
-    let descriptor_set_layout_create_info = vk::DescriptorSetLayoutCreateInfo::builder()
-        .bindings(&bindings);
+    let descriptor_set_layout_create_info =
+        vk::DescriptorSetLayoutCreateInfo::builder().bindings(&bindings);
 
     let descriptor_set_layout =
         device.create_descriptor_set_layout(&descriptor_set_layout_create_info, None)?;
@@ -897,8 +895,6 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             0,
             push_constant,
         );
-
-
 
         let descriptor_pool_create_info = vk::DescriptorPoolCreateInfo::builder()
             .max_sets(1)
