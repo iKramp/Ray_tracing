@@ -4,6 +4,7 @@ use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
 use spirv_std::num_traits::Float;
+use shared::glam::Vec4;
 use vector3d::Vector3d;
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
@@ -75,6 +76,7 @@ impl Ray {
         ray_depth: u32,
         //rng: &mut ThreadRng,
         /*resources: Rc<Resources>,*/
+        cam_data: &CamData,
     ) -> Vector3d {
         self.normalize();
         let mut record = HitRecord::new(/*resources.clone()*/);
@@ -87,12 +89,45 @@ impl Ray {
             //return record.material.get_stop_color(&record); //return background color
         }
 
+        /*for (vert_0, vert_1, vert_2, _) in cam_data.teapot.faces {
+            let vert = Vec4::default();
+            let p0 = cam_data.teapot.vertices.get(vert_0 as usize).unwrap_or(&vert);
+            let p1 = cam_data.teapot.vertices.get(vert_1 as usize).unwrap_or(&vert);
+            let p2 = cam_data.teapot.vertices.get(vert_2 as usize).unwrap_or(&vert);
+            let p0 = Vector3d::new(p0.x as f64, p0.y as f64, p0.z as f64);
+            let p1 = Vector3d::new(p1.x as f64, p1.y as f64, p1.z as f64);
+            let p2 = Vector3d::new(p2.x as f64, p2.y as f64, p2.z as f64);
+            if let Some(t) = triangle_ray_intersect(p0, p1, p2, &self, (0.00001, 10000000.0)) {
+                let a = p1 - p0;
+                let b = p2 - p0;
+                let normal = normalize_vec(&mut a.cross(b));
+                record.try_add(
+                    self.pos + self.orientation * t,
+                    normal,
+                    t,
+                    &self,
+                    //self.mate
+                    // rial.clone(),
+                    (0.0, 0.0),
+                );
+            }
+        }*/
+
+
         /*for object in &scene_info.hittable_objects {
             object.hit(self, (0.001, f64::MAX), &mut record);
         }*/
 
         record.ray.normalize();
         normalize_vec(&mut record.normal);
+
+
+        Vector3d::new(
+            (record.normal.x + 1.0) * 255.0 / 2.0,
+            (record.normal.y + 1.0) * 255.0 / 2.0,
+            (record.normal.z + 1.0) * 255.0 / 2.0,
+        )
+
         /*let return_type = record.material.get_next_ray_dir(&record/*, rng*/);
         match return_type {
             RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
@@ -102,8 +137,9 @@ impl Ray {
                 let next_color = next_ray.trace_ray(scene_info, ray_depth - 1/*, rng,*/ /*resources*/);
                 record.material.get_color(&record, next_color)
             }
-        }*/
+        }
         Vector3d::default()
+    }*/
     }
 
     pub fn get_color(
@@ -112,9 +148,9 @@ impl Ray {
         data: &CamData,
         /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
     ) -> Vector3d {
-        //let mut color = Vector3d::new(0.0, 0.0, 0.0);
+        let mut color = Vector3d::new(0.0, 0.0, 0.0);
         //for _i in 0..data.samples {
-        let vec = claculate_vec_dir_from_cam(
+        let mut vec = claculate_vec_dir_from_cam(
             data,
             (
                 pix_x as f32, // + rng.gen_range(0.0..1.0),
@@ -122,22 +158,18 @@ impl Ray {
             ),
         );
 
-        let mut temp = vec;
-        temp.normalize();
-        let factor = (temp.orientation.y + 0.5).clamp(0.0, 1.0);
-
-        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
-
-        /*return vec.orientation;
         vec.normalize();
-        color = color + vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/);
-        }
+        let factor = (vec.orientation.y + 0.5).clamp(0.0, 1.0);
+
+        /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
+
+        color = color + vec.trace_ray(/*&scene_info,*/ 5 /*, rng*/, /*resources.clone()*/ data);
         color = color / 1.0/*data.samples as f64*/ / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
         color.y = color.y.sqrt().clamp(0.0, 0.999999999);
         color.z = color.z.sqrt().clamp(0.0, 0.999999999);
         color = color * 256.0;
-        color*/
+        color
     }
 }

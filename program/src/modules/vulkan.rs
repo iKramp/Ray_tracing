@@ -9,6 +9,7 @@
 
 use std::collections::HashSet;
 use std::ffi::CStr;
+use std::ops::Deref;
 use std::os::raw::c_void;
 use std::vec;
 
@@ -87,7 +88,7 @@ impl App {
     }
 
     /// Renders a frame for our Vulkan app.
-    pub(crate) unsafe fn render(&mut self, window: &Window, cam_data: CamData) -> Result<()> {
+    pub(crate) unsafe fn render(&mut self, window: &Window, cam_data: Box<CamData>) -> Result<()> {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
         self.device
@@ -154,10 +155,10 @@ impl App {
         Ok(())
     }
 
-    unsafe fn update_uniform_buffer(&self, image_index: usize, data: CamData) -> Result<()> {
+    unsafe fn update_uniform_buffer(&self, image_index: usize, data: Box<CamData>) -> Result<()> {
         // MVP
 
-        let ubo = data;
+        let ubo = *data.deref();
 
         // Copy
 

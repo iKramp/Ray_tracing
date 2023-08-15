@@ -14,21 +14,20 @@ const HEIGHT: usize = 720;
 pub fn main() -> Result<()> {
     pretty_env_logger::init();
 
-    let data = CamData {
+
+    let data = Box::new(CamData {
         pos: glam::Vec4::new(0.0, 0.0, 0.0, 0.0),
         orientation: glam::Vec4::new(0.0, 0.0, 1.0, 0.0),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
         samples: 1,
-    };
+    });
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
     //let normal_material = Rc::new(NormalMaterial {});
     //let scene_info = SceneInfo::default();
-
-    //let (mut canvas , mut event_pump) = get_canvas_and_pump(data.canvas_width as u32, data.canvas_height as u32);
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
@@ -45,6 +44,7 @@ pub fn main() -> Result<()> {
     let mut frame_count = 0;
     let mut start_time = std::time::Instant::now();
     event_loop.run(move |event, _, control_flow| {
+        let temp = data.clone();
         *control_flow = ControlFlow::Poll;
         match event {
             // Render a frame if our Vulkan app is not being destroyed.
@@ -57,7 +57,7 @@ pub fn main() -> Result<()> {
                     frame_count = 0;
                     start_time = std::time::Instant::now();
                 }
-                app.render(&window, data)
+                app.render(&window, temp)
             }
             .unwrap(),
             // Destroy our Vulkan app.

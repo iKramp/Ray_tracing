@@ -171,7 +171,7 @@ impl Mesh {
     }
 }*/
 
-/*fn triangle_ray_intersect(
+pub(crate) fn triangle_ray_intersect(
     p0: Vector3d,
     p1: Vector3d,
     p2: Vector3d,
@@ -180,7 +180,8 @@ impl Mesh {
 ) -> Option<f64> {
     let a = p1 - p0;
     let b = p2 - p0;
-    let normal = normalize_vec(&mut a.cross(b));
+    let mut normal = &mut a.cross(b);
+    normal.normalize();
     let d = -(normal.dot(p0));
     if normal.dot(ray.orientation).abs() < f64::EPSILON {
         return None;
@@ -214,7 +215,7 @@ impl Mesh {
     }
 
     Some(t)
-}*/
+}
 
 /*impl HitObject for Mesh {
     fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
