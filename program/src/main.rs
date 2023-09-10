@@ -8,8 +8,8 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
-const WIDTH: usize = 1280;
-const HEIGHT: usize = 720;
+const WIDTH: usize = 1000;
+const HEIGHT: usize = 1280;
 
 pub fn main() -> Result<()> {
     pretty_env_logger::init();
@@ -30,9 +30,14 @@ pub fn main() -> Result<()> {
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
         hittable_objects: [
-            Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.5),
-            Sphere::new(Vector3d::new(1.0, -0.2, 2.0), 0.3),
-            Sphere::new(Vector3d::new(-1.0, -0.2, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, -0.4, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, -0.2, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, 0.2, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, 0.4, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.0, 0.6, 2.0), 0.3),
+            Sphere::new(Vector3d::new(0.5, -0.5, 2.0), 0.3),
+            Sphere::new(Vector3d::new(-0.5, -0.5, 2.0), 0.3),
         ],
     };
 
