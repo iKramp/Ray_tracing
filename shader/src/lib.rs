@@ -12,13 +12,19 @@ use modules::{data::*, material::*};
 pub fn main_fs(
     #[spirv(frag_coord)] in_frag_coord: Vec4, //counts pixels, from 0 to canvas_width/canvas_height
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
+    #[spirv(uniform, descriptor_set = 0, binding = 1)] scene_info: &SceneInfo,
     output: &mut Vec4,
 ) {
-    let color =
-        modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize), &data)
-            / 255.0; //tracer gives colors from 0 to 255
+    if scene_info.test == 0.1 {
+        *output = Vec4::new(0.0, 0.0, 0.0, 1.0);
+        return;
+    } else {
+        let color =
+            modules::trace::Ray::get_color((in_frag_coord.x as usize, in_frag_coord.y as usize), &data)
+                / 255.0; //tracer gives colors from 0 to 255
 
-    *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
+        *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
+    }
 }
 
 #[spirv(vertex)]

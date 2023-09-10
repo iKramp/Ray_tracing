@@ -67,8 +67,8 @@ pub use vector3d::Vector3d;
 #[repr(C)]
 #[derive(Copy, Clone, PartialEq)]
 pub struct PositionedVector3d {
-    pub pos: Vector3d,
-    pub orientation: Vector3d,
+    pub pos: glam::Vec4,
+    pub orientation: glam::Vec4,
 }
 
 
@@ -81,4 +81,46 @@ pub struct CamData {
     pub canvas_height: u32,
     pub fov: f32,
     pub samples: u32,
+}
+
+
+pub struct SceneInfo {
+    pub sun_orientation: Vector3d,
+    //pub hittable_objects: Vec<Box<dyn HitObject>>,
+    pub hittable_objects: [Sphere; 1],
+    pub test: f64,
+}
+
+impl Default for SceneInfo {
+    fn default() -> Self {
+        SceneInfo {
+            sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
+            /*hittable_objects: Vec::new()*//*vec![parse_obj_file(
+                "program/src/resources/teapot.obj",
+                0.25,
+                vector3d::new(-0.05, 0.25, 0.0),
+            )]*/
+            hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5)],
+            //sphere: Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5),
+            test: 0.0,
+        }
+    }
+}
+
+pub struct Sphere {
+    pub pos: Vector3d,
+    pub radius: f64,
+    pub padding: f64,
+    //pub material: Box<Rc<dyn Material>>,
+}
+
+impl Sphere {
+    fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
+        Self {
+            radius,
+            pos,
+            padding: 0.0,
+            //material,
+        }
+    }
 }

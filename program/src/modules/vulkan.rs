@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
+
+/*
+NOTE TO SELF: wherever you need to do anything with new descriptors, i'll write UPDATE DESCRIPTORS HERE
+ */
+
 #![allow(
     dead_code,
     unused_variables,
@@ -46,21 +51,23 @@ const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
+//UPDATE DESCRIPTORS HERE
 const NUM_DESCRIPTORS: u32 = 2;
 
 /// Our Vulkan app.
-#[derive(Clone, Debug)]
 pub(crate) struct App {
     entry: Entry,
     instance: Instance,
     data: AppData,
     device: Device,
     frame: usize,
+    cam_data: CamData,
+    scene_info: SceneInfo,
 }
 
 impl App {
     /// Creates our Vulkan app.
-    pub(crate) unsafe fn create(window: &Window) -> Result<Self> {
+    pub(crate) unsafe fn create(window: &Window, cam_data: CamData, scene_info: SceneInfo) -> Result<Self> {
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
         let mut data = AppData::default();
@@ -86,11 +93,13 @@ impl App {
             data,
             device,
             frame: 0,
+            cam_data,
+            scene_info,
         })
     }
 
     /// Renders a frame for our Vulkan app.
-    pub(crate) unsafe fn render(&mut self, window: &Window, cam_data: Box<CamData>) -> Result<()> {
+    pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
         self.device
@@ -117,7 +126,7 @@ impl App {
 
         self.data.images_in_flight[image_index] = in_flight_fence;
 
-        self.update_uniform_buffer(image_index, cam_data)?;
+        self.update_uniform_buffer(image_index)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
         let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
@@ -157,24 +166,31 @@ impl App {
         Ok(())
     }
 
-    unsafe fn update_uniform_buffer(&self, image_index: usize, data: Box<CamData>) -> Result<()> {
-        // MVP
-
-        let ubo = *data.deref();
+    unsafe fn update_uniform_buffer(&self, image_index: usize) -> Result<()> {
+        //UPDATE DESCRIPTORS HERE
 
         // Copy
 
-        let memory = self.device.map_memory(
-            self.data.uniform_buffers_memory[image_index],
+        let cam_data_memory = self.device.map_memory(
+            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize],
             0,
             std::mem::size_of::<CamData>() as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-
-        memcpy(&ubo, memory.cast(), 1);
-
+        memcpy(&self.cam_data, cam_data_memory.cast(), 1);
         self.device
-            .unmap_memory(self.data.uniform_buffers_memory[image_index]);
+            .unmap_memory(self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize]);
+
+        let scene_info_memory = self.device.map_memory(
+            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1],
+            0,
+            std::mem::size_of::<SceneInfo>() as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(&self.scene_info, scene_info_memory.cast(), 1);
+        self.device
+            .unmap_memory(self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1]);
+
 
         Ok(())
     }
@@ -948,13 +964,20 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
 }
 
 unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> Result<()> {
-    let ubo_binding = vk::DescriptorSetLayoutBinding::builder()
+    //UPDATE DESCRIPTORS HERE
+    let ubo_binding_1 = vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(NUM_DESCRIPTORS)
+        .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
-    let bindings = &[ubo_binding];
+    let ubo_binding_2 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(1)
+        .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+    let bindings = &[ubo_binding_1, ubo_binding_2];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
     data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
@@ -1039,6 +1062,7 @@ unsafe fn create_uniform_buffers(
     device: &Device,
     data: &mut AppData,
 ) -> Result<()> {
+    //UPDATE DESCRIPTORS HERE
     data.uniform_buffers.clear();
     data.uniform_buffers_memory.clear();
 
@@ -1052,11 +1076,14 @@ unsafe fn create_uniform_buffers(
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
 
+        data.uniform_buffers.push(uniform_buffer);
+        data.uniform_buffers_memory.push(uniform_buffer_memory);
+
         let (uniform_buffer, uniform_buffer_memory) = create_buffer(
             instance,
             device,
             data,
-            std::mem::size_of::<CamData>() as u64,
+            std::mem::size_of::<SceneInfo>() as u64,
             vk::BufferUsageFlags::UNIFORM_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
@@ -1086,6 +1113,7 @@ unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<
 
 
 unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
+    //UPDATE DESCRIPTORS HERE
     // Allocate
 
     let layouts = vec![data.descriptor_set_layout; data.swapchain_images.len()];
@@ -1098,12 +1126,17 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
     // Update
 
     for i in 0..data.swapchain_images.len() {
-        let info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.uniform_buffers[i])
+        let cam_data_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.uniform_buffers[i * NUM_DESCRIPTORS as usize])
             .offset(0)
             .range(std::mem::size_of::<CamData>() as u64);
 
-        let buffer_info = &[info];
+        let scene_info_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.uniform_buffers[i * NUM_DESCRIPTORS as usize + 1])
+            .offset(0)
+            .range(std::mem::size_of::<SceneInfo>() as u64);
+
+        let buffer_info = &[cam_data_info, scene_info_info];
         let ubo_write = vk::WriteDescriptorSet::builder()
             .dst_set(data.descriptor_sets[i])
             .dst_binding(0)

@@ -57,21 +57,18 @@ pub trait HitObject {
     fn calculate_normal(&self, hit: Vector3d) -> Vector3d;
 }
 
-pub struct Sphere {
-    pub pos: Vector3d,
-    pub radius: f64,
-    //pub material: Box<Rc<dyn Material>>,
+pub trait SphereObject { //exists so we can define impl outside of shared
+    fn get_uv(&self, normal: Vector3d) -> (f64, f64);
+    fn try_add_to_record(
+        &self,
+        ray: &Ray,
+        t: f64,
+        //record: &mut HitRecord,
+        t_clamp: (f64, f64),
+    ) -> bool;
 }
 
-impl Sphere {
-    pub fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
-        Sphere {
-            pos,
-            radius,
-            //material,
-        }
-    }
-
+impl SphereObject for shared::Sphere {
     fn get_uv(&self, normal: Vector3d) -> (f64, f64) {
         let angle_y = (-normal).y.asin() / core::f64::consts::PI + 0.5;
         let mut angle_xz = ((normal).x.atan2((-normal).z) / core::f64::consts::PI + 1.0) / 2.0;
@@ -84,10 +81,10 @@ impl Sphere {
         &self,
         ray: &Ray,
         t: f64,
-        record: &mut HitRecord,
+        //record: &mut HitRecord,
         t_clamp: (f64, f64),
     ) -> bool {
-        if t < t_clamp.1 && t > t_clamp.0 {
+        /*if t < t_clamp.1 && t > t_clamp.0 {
             let hit = ray.pos + ray.orientation * t;
             let normal = self.calculate_normal(hit);
             record.try_add(
@@ -100,11 +97,12 @@ impl Sphere {
             );
             return true;
         }
+        false*/
         false
     }
 }
 
-impl HitObject for Sphere {
+impl HitObject for shared::Sphere {
     fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
         //some black magic math idk
         let oc = ray.pos - self.pos;
@@ -115,12 +113,12 @@ impl HitObject for Sphere {
 
         if discriminant > 0.0 {
             let root = (-half_b - discriminant.sqrt()) / a;
-            if self.try_add_to_record(ray, root, record, t_clamp) {
+            if self.try_add_to_record(ray, root, /*record, */t_clamp) {
                 return;
             }
 
             let root = (-half_b + discriminant.sqrt()) / a;
-            self.try_add_to_record(ray, root, record, t_clamp);
+            self.try_add_to_record(ray, root, /*record, */t_clamp);
         }
     }
 
@@ -128,6 +126,8 @@ impl HitObject for Sphere {
         (hit - self.pos) / self.radius
     }
 }
+
+
 
 pub struct Vertex {
     #[allow(dead_code)]

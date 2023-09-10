@@ -35,24 +35,6 @@ use vector3d::Vector3d;
     ))
 }*/
 
-pub struct SceneInfo {
-    pub sun_orientation: Vector3d,
-    //pub hittable_objects: Vec<Box<dyn HitObject>>,
-}
-
-impl Default for SceneInfo {
-    fn default() -> Self {
-        SceneInfo {
-            sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
-            /*hittable_objects: Vec::new()*//*vec![parse_obj_file(
-                "program/src/resources/teapot.obj",
-                0.25,
-                vector3d::new(-0.05, 0.25, 0.0),
-            )]*/
-        }
-    }
-}
-
 pub struct Resources {
     //pub earth: image::DynamicImage,
 }
