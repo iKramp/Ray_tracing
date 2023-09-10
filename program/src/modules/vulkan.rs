@@ -46,6 +46,8 @@ const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
+const NUM_DESCRIPTORS: u32 = 2;
+
 /// Our Vulkan app.
 #[derive(Clone, Debug)]
 pub(crate) struct App {
@@ -949,7 +951,7 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
     let ubo_binding = vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(1)
+        .descriptor_count(NUM_DESCRIPTORS)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
     let bindings = &[ubo_binding];
@@ -1050,6 +1052,15 @@ unsafe fn create_uniform_buffers(
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
 
+        let (uniform_buffer, uniform_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            std::mem::size_of::<CamData>() as u64,
+            vk::BufferUsageFlags::UNIFORM_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
         data.uniform_buffers.push(uniform_buffer);
         data.uniform_buffers_memory.push(uniform_buffer_memory);
     }
@@ -1061,12 +1072,12 @@ unsafe fn create_uniform_buffers(
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(data.swapchain_images.len() as u32);
+        .descriptor_count(data.swapchain_images.len() as u32 * NUM_DESCRIPTORS);
 
     let pool_sizes = &[ubo_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
-        .max_sets(data.swapchain_images.len() as u32);
+        .max_sets(data.swapchain_images.len() as u32 * NUM_DESCRIPTORS);
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
 

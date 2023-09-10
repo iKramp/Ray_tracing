@@ -118,10 +118,12 @@ impl Ray {
             object.hit(self, (0.001, f64::MAX), &mut record);
         }*/
 
-        record.ray.normalize();
+        /*let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
+        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
+
+        record.ray.normalize(); //normal rendering
         normalize_vec(&mut record.normal);
-
-
         Vector3d::new(
             (record.normal.x + 1.0) * 255.0 / 2.0,
             (record.normal.y + 1.0) * 255.0 / 2.0,
@@ -159,13 +161,11 @@ impl Ray {
         );
 
         vec.normalize();
-        let factor = (vec.orientation.y + 0.5).clamp(0.0, 1.0);
-
-        /*return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
-
-        color = color + vec.trace_ray(/*&scene_info,*/ 5 /*, rng*/, /*resources.clone()*/ data);
-        color = color / 1.0/*data.samples as f64*/ / 256.0;
+        for _ in 0..data.samples{
+            let mut random_vec = vec.clone() /*+ rng*/;
+            color = color + random_vec.trace_ray(/*&scene_info,*/ 5 /*, rng*/, /*resources.clone()*/ data);
+        }
+        color = color / data.samples as f64 / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
         color.y = color.y.sqrt().clamp(0.0, 0.999999999);
         color.z = color.z.sqrt().clamp(0.0, 0.999999999);

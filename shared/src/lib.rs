@@ -65,17 +65,18 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 pub use vector3d::Vector3d;
 
 #[repr(C)]
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct PositionedVector3d {
     pub pos: Vector3d,
     pub orientation: Vector3d,
 }
 
-#[repr(C)]
+
 #[derive(Copy, Clone, PartialEq)]
 pub struct CamData {
     pub pos: glam::Vec4,
     pub orientation: glam::Vec4,
+    //pub transform: PositionedVector3d,
     pub canvas_width: u32,
     pub canvas_height: u32,
     pub fov: f32,

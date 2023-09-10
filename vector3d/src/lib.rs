@@ -41,6 +41,12 @@ impl Vector3d {
         self.y /= len;
         self.z /= len;
     }
+
+    pub fn normalized(self) -> Self {
+        let mut result = self;
+        result.normalize();
+        result
+    }
 }
 
 impl Default for Vector3d {
