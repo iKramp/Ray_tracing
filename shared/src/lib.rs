@@ -88,7 +88,6 @@ pub struct SceneInfo {
     pub sun_orientation: Vector3d,
     //pub hittable_objects: Vec<Box<dyn HitObject>>,
     pub hittable_objects: [Sphere; 1],
-    pub test: f64,
 }
 
 impl Default for SceneInfo {
@@ -102,7 +101,6 @@ impl Default for SceneInfo {
             )]*/
             hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5)],
             //sphere: Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5),
-            test: 0.0,
         }
     }
 }
