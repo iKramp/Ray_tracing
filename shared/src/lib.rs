@@ -99,7 +99,7 @@ impl Default for SceneInfo {
                 0.25,
                 vector3d::new(-0.05, 0.25, 0.0),
             )]*/
-            hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5)],
+            hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 1.0), 0.5)],
             //sphere: Sphere::new(Vector3d::new(0.0, 0.0, 0.0), 0.5),
         }
     }
@@ -113,7 +113,7 @@ pub struct Sphere {
 }
 
 impl Sphere {
-    fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
+    pub fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
         Self {
             radius,
             pos,

@@ -63,15 +63,15 @@ pub trait SphereObject { //exists so we can define impl outside of shared
         &self,
         ray: &Ray,
         t: f64,
-        //record: &mut HitRecord,
+        record: &mut HitRecord,
         t_clamp: (f64, f64),
     ) -> bool;
 }
 
 impl SphereObject for shared::Sphere {
     fn get_uv(&self, normal: Vector3d) -> (f64, f64) {
-        let angle_y = (-normal).y.asin() / core::f64::consts::PI + 0.5;
-        let mut angle_xz = ((normal).x.atan2((-normal).z) / core::f64::consts::PI + 1.0) / 2.0;
+        let angle_y = (((-normal).y as f32).asin() as f64) / core::f64::consts::PI + 0.5;
+        let mut angle_xz = ((((normal).x as f32).atan2((-normal).z as f32) as f64) / core::f64::consts::PI + 1.0) / 2.0;
         angle_xz += 1.0;
         angle_xz %= 1.0;
         (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
@@ -81,10 +81,10 @@ impl SphereObject for shared::Sphere {
         &self,
         ray: &Ray,
         t: f64,
-        //record: &mut HitRecord,
+        record: &mut HitRecord,
         t_clamp: (f64, f64),
     ) -> bool {
-        /*if t < t_clamp.1 && t > t_clamp.0 {
+        if t < t_clamp.1 && t > t_clamp.0 {
             let hit = ray.pos + ray.orientation * t;
             let normal = self.calculate_normal(hit);
             record.try_add(
@@ -97,7 +97,6 @@ impl SphereObject for shared::Sphere {
             );
             return true;
         }
-        false*/
         false
     }
 }
@@ -113,12 +112,12 @@ impl HitObject for shared::Sphere {
 
         if discriminant > 0.0 {
             let root = (-half_b - discriminant.sqrt()) / a;
-            if self.try_add_to_record(ray, root, /*record, */t_clamp) {
+            if self.try_add_to_record(ray, root, record, t_clamp) {
                 return;
             }
 
             let root = (-half_b + discriminant.sqrt()) / a;
-            self.try_add_to_record(ray, root, /*record, */t_clamp);
+            self.try_add_to_record(ray, root, record, t_clamp);
         }
     }
 

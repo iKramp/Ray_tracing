@@ -72,7 +72,7 @@ impl Ray {
 
     pub fn trace_ray(
         &mut self,
-        //scene_info: &super::data::SceneInfo,
+        scene_info: &shared::SceneInfo,
         ray_depth: u32,
         //rng: &mut ThreadRng,
         /*resources: Rc<Resources>,*/
@@ -89,41 +89,19 @@ impl Ray {
             //return record.material.get_stop_color(&record); //return background color
         }
 
-        /*for (vert_0, vert_1, vert_2, _) in cam_data.teapot.faces {
-            let vert = Vec4::default();
-            let p0 = cam_data.teapot.vertices.get(vert_0 as usize).unwrap_or(&vert);
-            let p1 = cam_data.teapot.vertices.get(vert_1 as usize).unwrap_or(&vert);
-            let p2 = cam_data.teapot.vertices.get(vert_2 as usize).unwrap_or(&vert);
-            let p0 = Vector3d::new(p0.x as f64, p0.y as f64, p0.z as f64);
-            let p1 = Vector3d::new(p1.x as f64, p1.y as f64, p1.z as f64);
-            let p2 = Vector3d::new(p2.x as f64, p2.y as f64, p2.z as f64);
-            if let Some(t) = triangle_ray_intersect(p0, p1, p2, &self, (0.00001, 10000000.0)) {
-                let a = p1 - p0;
-                let b = p2 - p0;
-                let normal = normalize_vec(&mut a.cross(b));
-                record.try_add(
-                    self.pos + self.orientation * t,
-                    normal,
-                    t,
-                    &self,
-                    //self.mate
-                    // rial.clone(),
-                    (0.0, 0.0),
-                );
-            }
-        }*/
-
-
-        /*for object in &scene_info.hittable_objects {
-            object.hit(self, (0.001, f64::MAX), &mut record);
-        }*/
+        for sphere_index in 0..scene_info.hittable_objects.len() {
+            scene_info.hittable_objects[sphere_index].hit(self, (0.001, f64::MAX), &mut record);
+        }
+        /*let sphere = &scene_info.hittable_objects[0];
+        sphere.hit(self, (0.001, f64::MAX), &mut record);*/
 
         /*let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
         return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
             + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
 
+
         record.ray.normalize(); //normal rendering
-        normalize_vec(&mut record.normal);
+        record.normal.normalize();
         Vector3d::new(
             (record.normal.x + 1.0) * 255.0 / 2.0,
             (record.normal.y + 1.0) * 255.0 / 2.0,
@@ -148,7 +126,7 @@ impl Ray {
         (pix_x, pix_y): (usize, usize),
         /*rng: &mut ThreadRng, */
         data: &CamData,
-        /*scene_info: &super::data::SceneInfo,*/ /* resources: &Rc<Resources>*/
+        scene_info: &shared::SceneInfo, /* resources: &Rc<Resources>*/
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
         //for _i in 0..data.samples {
@@ -163,7 +141,7 @@ impl Ray {
         vec.normalize();
         for _ in 0..data.samples{
             let mut random_vec = vec.clone() /*+ rng*/;
-            color = color + random_vec.trace_ray(/*&scene_info,*/ 5 /*, rng*/, /*resources.clone()*/ data);
+            color = color + random_vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/ data);
         }
         color = color / data.samples as f64 / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);

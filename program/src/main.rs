@@ -27,7 +27,10 @@ pub fn main() -> Result<()> {
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
     //let normal_material = Rc::new(NormalMaterial {});
-    let scene_info = SceneInfo::default();
+    let scene_info = SceneInfo {
+        sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
+        hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.5)],
+    };
 
     let event_loop = EventLoop::new();
     let window = WindowBuilder::new()
