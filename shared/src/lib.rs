@@ -87,7 +87,7 @@ pub struct CamData {
 pub struct SceneInfo {
     pub sun_orientation: Vector3d,
     //pub hittable_objects: Vec<Box<dyn HitObject>>,
-    pub hittable_objects: [Sphere; 8],
+    pub hittable_objects: [Sphere; 3],
 }
 
 pub struct Sphere {
