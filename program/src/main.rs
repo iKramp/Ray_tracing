@@ -29,7 +29,11 @@ pub fn main() -> Result<()> {
     //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
-        hittable_objects: [Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.5)],
+        hittable_objects: [
+            Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.5),
+            Sphere::new(Vector3d::new(1.0, -0.2, 2.0), 0.3),
+            Sphere::new(Vector3d::new(-1.0, -0.2, 2.0), 0.3),
+        ],
     };
 
     let event_loop = EventLoop::new();
