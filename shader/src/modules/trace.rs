@@ -71,24 +71,21 @@ impl Ray {
         self.orientation = self.orientation / self.len();
     }
 
+    pub fn shoot_ray() {}
+
     pub fn trace_ray(
         &mut self,
         scene_info: &shared::SceneInfo,
-        ray_depth: u32,
-        rng_seed: &mut u32,
+        seed: &mut u32,
         //resources: Rc<Resources>,
         cam_data: &CamData,
-    ) -> Vector3d {
+        color: &mut Vector3d,
+    ) -> (RayReturn, HitRecord) {
         self.normalize();
         let mut record = HitRecord::new(/*resources.clone()*/);
         record.ray = *self;
         record.normal = self.orientation;
         normalize_vec(&mut record.normal);
-        if ray_depth == 0 {
-            //child modules count limit
-            return Vector3d::default();
-            //return record.material.get_stop_color(&record); //return background color
-        }
 
         record.ray.normalize(); //normal rendering
         record.normal.normalize();
@@ -101,29 +98,39 @@ impl Ray {
         record.normal.normalize();
 
         if record.t == f64::INFINITY {
-            let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
+            let sky_material = BackgroundMaterial {};
+            let stop_col = sky_material.get_stop_color(&record);
+            color.x *= stop_col.x;
+            color.y *= stop_col.y;
+            color.z *= stop_col.z;
+            return (
+                RayReturn {
+                    state: RayReturnState::Stop,
+                    ray: Vector3d::default(),
+                },
+                record,
+            );
+            /*let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
             return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-                + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
+                + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
         }
 
-        Vector3d::new(
-            (record.normal.x + 1.0) * 255.0 / 2.0,
-            (record.normal.y + 1.0) * 255.0 / 2.0,
-            (record.normal.z + 1.0) * 255.0 / 2.0,
-        )
+        let test_material = MetalMaterial::new(Vector3d::new(230.0, 230.0, 230.0), 0.0);
 
-        /*let return_type = record.material.get_next_ray_dir(&record/*, rng*/);
-            match return_type {
-                RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
-                RayReturnState::Stop => record.material.get_stop_color(&record),
-                RayReturnState::Ray(ray) => {
-                    let mut next_ray = Ray::new(record.pos, ray);
-                    let next_color = next_ray.trace_ray(scene_info, ray_depth - 1/*, rng,*/ /*resources*/);
-                    record.material.get_color(&record, next_color)
-                }
+        let ray_return = test_material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
+        match ray_return.state {
+            RayReturnState::Absorb => *color = Vector3d::default(),
+            RayReturnState::Stop => {
+                let stop_col = test_material.get_stop_color(&record);
+                color.x *= stop_col.x;
+                color.y *= stop_col.y;
+                color.z *= stop_col.z;
+            } //record.material.get_stop_color(&record),
+            RayReturnState::Ray => {
+                *color = test_material.get_color(&record, color) //record.material.get_color(&record, next_color)
             }
-            Vector3d::default()
-        }*/
+        }
+        (ray_return, record)
     }
 
     pub fn get_color(
@@ -135,6 +142,7 @@ impl Ray {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
 
         for _ in 0..data.samples {
+            let mut curr_sample_color = Vector3d::new(1.0, 1.0, 1.0);
             let mut vec = claculate_vec_dir_from_cam(
                 data,
                 (
@@ -144,14 +152,21 @@ impl Ray {
             );
             vec.normalize();
 
-            color = color
-                + vec.trace_ray(
-                    &scene_info,
-                    5,
-                    &mut rng_seed,
-                    //resources.clone(),
-                    data,
-                );
+            for _ in 0..20 {
+                //depth
+                let (ray_return, record) =
+                    vec.trace_ray(&scene_info, &mut rng_seed, data, &mut curr_sample_color);
+                match ray_return.state {
+                    RayReturnState::Ray => {
+                        vec = Ray::new(record.pos, ray_return.ray);
+                    }
+                    _ => {
+                        break;
+                    }
+                }
+            }
+
+            color = color + curr_sample_color;
         }
         color = color / data.samples as f64 / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
