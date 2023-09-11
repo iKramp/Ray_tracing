@@ -14,14 +14,13 @@ const HEIGHT: usize = 720;
 pub fn main() -> Result<()> {
     pretty_env_logger::init();
 
-
     let cam_data = CamData {
         pos: glam::Vec4::new(0.0, 0.0, 0.0, 0.0),
         orientation: glam::Vec4::new(0.0, 0.0, 1.0, 0.0),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 1,
+        samples: 10,
     };
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();

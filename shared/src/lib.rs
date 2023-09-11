@@ -71,7 +71,6 @@ pub struct PositionedVector3d {
     pub orientation: glam::Vec4,
 }
 
-
 #[derive(Copy, Clone, PartialEq)]
 pub struct CamData {
     pub pos: glam::Vec4,
@@ -82,7 +81,6 @@ pub struct CamData {
     pub fov: f32,
     pub samples: u32,
 }
-
 
 pub struct SceneInfo {
     pub sun_orientation: Vector3d,

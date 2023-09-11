@@ -14,7 +14,12 @@ pub struct Vector3d {
 
 impl Vector3d {
     pub fn new(x: f64, y: f64, z: f64) -> Self {
-        Vector3d { x, y, z, padding: 0.0}
+        Vector3d {
+            x,
+            y,
+            z,
+            padding: 0.0,
+        }
     }
 
     pub fn dot(self, rhs: Vector3d) -> f64 {

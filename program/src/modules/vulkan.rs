@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-
 /*
 NOTE TO SELF: wherever you need to do anything with new descriptors, i'll write UPDATE DESCRIPTORS HERE
  */
@@ -67,7 +66,11 @@ pub(crate) struct App {
 
 impl App {
     /// Creates our Vulkan app.
-    pub(crate) unsafe fn create(window: &Window, cam_data: CamData, scene_info: SceneInfo) -> Result<Self> {
+    pub(crate) unsafe fn create(
+        window: &Window,
+        cam_data: CamData,
+        scene_info: SceneInfo,
+    ) -> Result<Self> {
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
         let mut data = AppData::default();
@@ -188,9 +191,9 @@ impl App {
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.scene_info, scene_info_memory.cast(), 1);
-        self.device
-            .unmap_memory(self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1]);
-
+        self.device.unmap_memory(
+            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1],
+        );
 
         Ok(())
     }
@@ -1095,7 +1098,6 @@ unsafe fn create_uniform_buffers(
     Ok(())
 }
 
-
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
@@ -1110,7 +1112,6 @@ unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<
 
     Ok(())
 }
-
 
 unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
     //UPDATE DESCRIPTORS HERE

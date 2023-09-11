@@ -26,7 +26,6 @@ pub fn parse_obj_file(path: &str, scale: f64, transform: Vector3d) {
             _ => {}
         }
     }
-
 }
 
 pub struct Vertex {

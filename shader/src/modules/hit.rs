@@ -57,7 +57,8 @@ pub trait HitObject {
     fn calculate_normal(&self, hit: Vector3d) -> Vector3d;
 }
 
-pub trait SphereObject { //exists so we can define impl outside of shared
+pub trait SphereObject {
+    //exists so we can define impl outside of shared
     fn get_uv(&self, normal: Vector3d) -> (f64, f64);
     fn try_add_to_record(
         &self,
@@ -71,7 +72,9 @@ pub trait SphereObject { //exists so we can define impl outside of shared
 impl SphereObject for shared::Sphere {
     fn get_uv(&self, normal: Vector3d) -> (f64, f64) {
         let angle_y = (((-normal).y as f32).asin() as f64) / core::f64::consts::PI + 0.5;
-        let mut angle_xz = ((((normal).x as f32).atan2((-normal).z as f32) as f64) / core::f64::consts::PI + 1.0) / 2.0;
+        let mut angle_xz =
+            ((((normal).x as f32).atan2((-normal).z as f32) as f64) / core::f64::consts::PI + 1.0)
+                / 2.0;
         angle_xz += 1.0;
         angle_xz %= 1.0;
         (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
@@ -125,8 +128,6 @@ impl HitObject for shared::Sphere {
         (hit - self.pos) / self.radius
     }
 }
-
-
 
 pub struct Vertex {
     #[allow(dead_code)]

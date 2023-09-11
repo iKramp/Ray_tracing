@@ -1,10 +1,11 @@
 use super::hit::*;
 use super::material::*;
+use super::randfloat;
 use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
-use spirv_std::num_traits::Float;
 use shared::glam::Vec4;
+use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
@@ -20,7 +21,7 @@ pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) ->
     let offset_yaw = pix_offset_x.atan();
     let offset_pitch = pix_offset_y.atan();
 
-    let mut cam_vec = data.orientation;
+    let cam_vec = data.orientation;
     let cam_vec = cam_vec.normalize();
 
     let mut yaw: f32 = (cam_vec.x).asin();
@@ -74,8 +75,8 @@ impl Ray {
         &mut self,
         scene_info: &shared::SceneInfo,
         ray_depth: u32,
-        //rng: &mut ThreadRng,
-        /*resources: Rc<Resources>,*/
+        rng_seed: &mut u32,
+        //resources: Rc<Resources>,
         cam_data: &CamData,
     ) -> Vector3d {
         self.normalize();
@@ -89,19 +90,22 @@ impl Ray {
             //return record.material.get_stop_color(&record); //return background color
         }
 
+        record.ray.normalize(); //normal rendering
+        record.normal.normalize();
+
         for sphere_index in 0..scene_info.hittable_objects.len() {
-            scene_info.hittable_objects[sphere_index].hit(self, (0.001, f64::MAX), &mut record);
+            scene_info.hittable_objects[sphere_index].hit(self, (0.00001, record.t), &mut record);
         }
-        /*let sphere = &scene_info.hittable_objects[0];
-        sphere.hit(self, (0.001, f64::MAX), &mut record);*/
-
-        /*let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
-        return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
-
 
         record.ray.normalize(); //normal rendering
         record.normal.normalize();
+
+        if record.t == f64::INFINITY {
+            let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
+            return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
+                + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;
+        }
+
         Vector3d::new(
             (record.normal.x + 1.0) * 255.0 / 2.0,
             (record.normal.y + 1.0) * 255.0 / 2.0,
@@ -109,39 +113,45 @@ impl Ray {
         )
 
         /*let return_type = record.material.get_next_ray_dir(&record/*, rng*/);
-        match return_type {
-            RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
-            RayReturnState::Stop => record.material.get_stop_color(&record),
-            RayReturnState::Ray(ray) => {
-                let mut next_ray = Ray::new(record.pos, ray);
-                let next_color = next_ray.trace_ray(scene_info, ray_depth - 1/*, rng,*/ /*resources*/);
-                record.material.get_color(&record, next_color)
+            match return_type {
+                RayReturnState::Absorb => Vector3d::new(0.0, 0.0, 0.0),
+                RayReturnState::Stop => record.material.get_stop_color(&record),
+                RayReturnState::Ray(ray) => {
+                    let mut next_ray = Ray::new(record.pos, ray);
+                    let next_color = next_ray.trace_ray(scene_info, ray_depth - 1/*, rng,*/ /*resources*/);
+                    record.material.get_color(&record, next_color)
+                }
             }
-        }
-        Vector3d::default()
-    }*/
+            Vector3d::default()
+        }*/
     }
 
     pub fn get_color(
         (pix_x, pix_y): (usize, usize),
-        /*rng: &mut ThreadRng, */
+        mut rng_seed: u32,
         data: &CamData,
         scene_info: &shared::SceneInfo, /* resources: &Rc<Resources>*/
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
-        //for _i in 0..data.samples {
-        let mut vec = claculate_vec_dir_from_cam(
-            data,
-            (
-                pix_x as f32, // + rng.gen_range(0.0..1.0),
-                pix_y as f32, // + rng.gen_range(0.0..1.0),
-            ),
-        );
 
-        vec.normalize();
-        for _ in 0..data.samples{
-            let mut random_vec = vec.clone() /*+ rng*/;
-            color = color + random_vec.trace_ray(&scene_info, 5 /*, rng*/, /*resources.clone()*/ data);
+        for _ in 0..data.samples {
+            let mut vec = claculate_vec_dir_from_cam(
+                data,
+                (
+                    pix_x as f32 + randfloat(&mut rng_seed, (0.0, 1.0)),
+                    pix_y as f32 + randfloat(&mut rng_seed, (0.0, 1.0)),
+                ),
+            );
+            vec.normalize();
+
+            color = color
+                + vec.trace_ray(
+                    &scene_info,
+                    5,
+                    &mut rng_seed,
+                    //resources.clone(),
+                    data,
+                );
         }
         color = color / data.samples as f64 / 256.0;
         color.x = color.x.sqrt().clamp(0.0, 0.999999999);
