@@ -78,7 +78,7 @@ impl Ray {
         scene_info: &shared::SceneInfo,
         seed: &mut u32,
         //resources: Rc<Resources>,
-        cam_data: &CamData,
+        //cam_data: &CamData,
         color: &mut Vector3d,
     ) -> (RayReturn, HitRecord) {
         self.normalize();
@@ -155,7 +155,7 @@ impl Ray {
             for _ in 0..20 {
                 //depth
                 let (ray_return, record) =
-                    vec.trace_ray(&scene_info, &mut rng_seed, data, &mut curr_sample_color);
+                    vec.trace_ray(&scene_info, &mut rng_seed, /*data, */&mut curr_sample_color);
                 match ray_return.state {
                     RayReturnState::Ray => {
                         vec = Ray::new(record.pos, ray_return.ray);
