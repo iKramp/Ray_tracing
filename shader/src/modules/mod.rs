@@ -3,7 +3,7 @@ pub mod hit;
 pub mod material;
 pub mod trace;
 
-pub fn xorshift(seed: u32) -> u32 {
+pub fn xor_shift(seed: u32) -> u32 {
     let mut x = seed;
     x ^= x << 13;
     x ^= x >> 17;
@@ -11,9 +11,8 @@ pub fn xorshift(seed: u32) -> u32 {
     x
 }
 
-pub fn randfloat(seed: &mut u32, range: (f32, f32)) -> f32 {
-    let num = xorshift(*seed);
+pub fn rand_float(seed: &mut u32, range: (f32, f32)) -> f32 {
+    let num = xor_shift(*seed);
     *seed = num;
-    let num = (*seed & 65535) as f32 * (range.1 - range.0) / 65535.0 + range.0;
-    num
+    (*seed & 65535) as f32 * (range.1 - range.0) / 65535.0 + range.0
 }

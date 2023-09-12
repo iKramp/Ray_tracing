@@ -1,6 +1,6 @@
 use super::hit::*;
 //use image::GenericImageView;
-use super::randfloat;
+use super::rand_float;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
@@ -34,9 +34,9 @@ pub fn normalize_vec(vec: &mut Vector3d) -> Vector3d {
 
 fn rand_vec_in_unit_cube(seed: &mut u32) -> Vector3d {
     Vector3d::new(
-        randfloat(seed, (-1.0, 1.0)) as f64,
-        randfloat(seed, (-1.0, 1.0)) as f64,
-        randfloat(seed, (-1.0, 1.0)) as f64,
+        rand_float(seed, (-1.0, 1.0)) as f64,
+        rand_float(seed, (-1.0, 1.0)) as f64,
+        rand_float(seed, (-1.0, 1.0)) as f64,
     )
 }
 
@@ -137,7 +137,7 @@ impl Material for MetalMaterial {
 pub struct NormalMaterial {}
 
 impl Material for NormalMaterial {
-    fn get_next_ray_dir(&self, record: &HitRecord, seed: &mut u32) -> RayReturn {
+    fn get_next_ray_dir(&self, _record: &HitRecord, _seed: &mut u32) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
             ray: Vector3d::default(),
@@ -156,7 +156,7 @@ impl Material for NormalMaterial {
 pub struct BackgroundMaterial {}
 
 impl Material for BackgroundMaterial {
-    fn get_next_ray_dir(&self, record: &HitRecord, seed: &mut u32) -> RayReturn {
+    fn get_next_ray_dir(&self, _record: &HitRecord, _seed: &mut u32) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
             ray: Vector3d::default(),
@@ -183,7 +183,7 @@ impl EmmissiveMaterial {
 }
 
 impl Material for EmmissiveMaterial {
-    fn get_next_ray_dir(&self, _record: &HitRecord, seed: &mut u32) -> RayReturn {
+    fn get_next_ray_dir(&self, _record: &HitRecord, _seed: &mut u32) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
             ray: Vector3d::default(),
@@ -249,7 +249,7 @@ impl Material for RefractiveMaterial {
         let cos_theta = record.normal.dot(-record.ray.orientation);
         let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
         let reflectance = self.reflectance(record);
-        if refraction_ratio * sin_theta > 1.0 || reflectance > randfloat(seed, (0.0, 1.0)) as f64 {
+        if refraction_ratio * sin_theta > 1.0 || reflectance > rand_float(seed, (0.0, 1.0)) as f64 {
             RayReturn {
                 state: RayReturnState::Ray,
                 ray: self.reflect(record),

@@ -180,7 +180,7 @@ pub(crate) fn triangle_ray_intersect(
 ) -> Option<f64> {
     let a = p1 - p0;
     let b = p2 - p0;
-    let mut normal = &mut a.cross(b);
+    let normal = &mut a.cross(b);
     normal.normalize();
     let d = -(normal.dot(p0));
     if normal.dot(ray.orientation).abs() < f64::EPSILON {

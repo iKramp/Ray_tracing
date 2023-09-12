@@ -1,10 +1,10 @@
 use super::hit::*;
 use super::material::*;
-use super::randfloat;
+use super::rand_float;
 use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
-use shared::glam::Vec4;
+#[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 use vector3d::Vector3d;
 
@@ -146,8 +146,8 @@ impl Ray {
             let mut vec = claculate_vec_dir_from_cam(
                 data,
                 (
-                    pix_x as f32 + randfloat(&mut rng_seed, (0.0, 1.0)),
-                    pix_y as f32 + randfloat(&mut rng_seed, (0.0, 1.0)),
+                    pix_x as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
+                    pix_y as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
                 ),
             );
             vec.normalize();
@@ -155,7 +155,7 @@ impl Ray {
             for _ in 0..20 {
                 //depth
                 let (ray_return, record) =
-                    vec.trace_ray(&scene_info, &mut rng_seed, /*data, */&mut curr_sample_color);
+                    vec.trace_ray(scene_info, &mut rng_seed, /*data, */&mut curr_sample_color);
                 match ray_return.state {
                     RayReturnState::Ray => {
                         vec = Ray::new(record.pos, ray_return.ray);
