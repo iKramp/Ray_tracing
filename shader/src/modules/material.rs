@@ -78,15 +78,8 @@ pub trait Material {
     }
 }
 
-pub struct DiffuseMaterial {
-    pub color: Vector3d,
-}
-
-impl DiffuseMaterial {
-    pub fn new(color: Vector3d) -> Self {
-        DiffuseMaterial { color }
-    }
-}
+use shared::materials::DiffuseMaterial;
+use shared::SceneInfo;
 
 impl Material for DiffuseMaterial {
     fn get_color(&self, _record: &HitRecord, next_ray_color: &Vector3d) -> Vector3d {

@@ -6,6 +6,7 @@ use shared::CamData;
 use core::f64::consts::PI;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
+use spirv_std::ByteAddressableBuffer;
 use vector3d::Vector3d;
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
@@ -80,6 +81,7 @@ impl Ray {
         //resources: Rc<Resources>,
         //cam_data: &CamData,
         color: &mut Vector3d,
+        material_buffer: &ByteAddressableBuffer,
     ) -> (RayReturn, HitRecord) {
         self.normalize();
         let mut record = HitRecord::new(/*resources.clone()*/);
@@ -92,9 +94,10 @@ impl Ray {
 
         for sphere_index in 0..scene_info.hittable_objects.len() {
             scene_info.hittable_objects[sphere_index].hit(self, (0.00001, record.t), &mut record);
+            record.material_id = sphere_index as u32;
         }
 
-        record.ray.normalize(); //normal rendering
+        record.ray.normalize();
         record.normal.normalize();
 
         if record.t == f64::INFINITY {
@@ -110,24 +113,21 @@ impl Ray {
                 },
                 record,
             );
-            /*let factor = (record.ray.orientation.y + 0.5).clamp(0.0, 1.0); //sky rendering
-            return Vector3d::new(255.0, 255.0, 255.0) * (1.0 - factor)
-                + Vector3d::new(0.5, 0.7, 1.0) * 255.0 * factor;*/
         }
 
-        let test_material = MetalMaterial::new(Vector3d::new(230.0, 230.0, 230.0), 0.0);
+        let material = MetalMaterial::new(Vector3d::new(230.0, 230.0, 230.0), 0.0);
 
-        let ray_return = test_material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
+        let ray_return = material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
         match ray_return.state {
             RayReturnState::Absorb => *color = Vector3d::default(),
             RayReturnState::Stop => {
-                let stop_col = test_material.get_stop_color(&record);
+                let stop_col = material.get_stop_color(&record);
                 color.x *= stop_col.x;
                 color.y *= stop_col.y;
                 color.z *= stop_col.z;
             } //record.material.get_stop_color(&record),
             RayReturnState::Ray => {
-                *color = test_material.get_color(&record, color) //record.material.get_color(&record, next_color)
+                *color = material.get_color(&record, color) //record.material.get_color(&record, next_color)
             }
         }
         (ray_return, record)
@@ -138,6 +138,7 @@ impl Ray {
         mut rng_seed: u32,
         data: &CamData,
         scene_info: &shared::SceneInfo, /* resources: &Rc<Resources>*/
+        material_buffer: &ByteAddressableBuffer,
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
 
@@ -154,8 +155,12 @@ impl Ray {
 
             for _ in 0..20 {
                 //depth
-                let (ray_return, record) =
-                    vec.trace_ray(scene_info, &mut rng_seed, /*data, */&mut curr_sample_color);
+                let (ray_return, record) = vec.trace_ray(
+                    scene_info,
+                    &mut rng_seed,
+                    /*data, */ &mut curr_sample_color,
+                    material_buffer,
+                );
                 match ray_return.state {
                     RayReturnState::Ray => {
                         vec = Ray::new(record.pos, ray_return.ray);

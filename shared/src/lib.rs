@@ -2,6 +2,8 @@
 
 #![cfg_attr(target_arch = "spirv", no_std, feature(lang_items))]
 
+pub mod materials;
+
 use core::f32::consts::PI;
 use glam::{vec3, Vec3};
 

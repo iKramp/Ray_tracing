@@ -11,7 +11,7 @@ pub struct HitRecord {
     pub normal: Vector3d, //points toward the modules
     pub t: f64,
     pub front_face: bool, //is the modules and normal on the front of the face?
-    //pub material: Box<Rc<dyn Material>>,
+    pub material_id: u32,
     pub uv: (f64, f64),
     //pub resources: Rc<Resources>,
 }
@@ -25,7 +25,7 @@ impl HitRecord {
             normal: Vector3d::default(),
             t: f64::INFINITY,
             front_face: true,
-            //material: Box::new(Rc::new(BackgroundMaterial {})),
+            material_id: 0,
             uv: (0.0, 0.0),
             //resources,
         }

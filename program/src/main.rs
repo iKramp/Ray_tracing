@@ -2,6 +2,7 @@ pub mod modules;
 use anyhow::Result;
 use std::rc::Rc;
 
+use shared::materials;
 use shared::*;
 use winit::dpi::LogicalSize;
 use winit::event::{Event, WindowEvent};
@@ -22,6 +23,12 @@ pub fn main() -> Result<()> {
         fov: 90.0,
         samples: 10,
     };
+
+    let materials: Vec<materials::DiffuseMaterial> = vec![
+        materials::DiffuseMaterial::new(Vector3d::new(255.0, 0.0, 0.0)),
+        materials::DiffuseMaterial::new(Vector3d::new(0.0, 0.0, 255.0)),
+        materials::DiffuseMaterial::new(Vector3d::new(0.0, 255.0, 0.0)),
+    ];
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });

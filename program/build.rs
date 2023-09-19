@@ -7,6 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .capability(Float64)
         .capability(Int64)
         .capability(Int8)
+        .extension("SPV_KHR_storage_buffer_storage_class")
         .build()?;
     Ok(())
 }
