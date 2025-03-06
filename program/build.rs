@@ -1,5 +1,4 @@
-use spirv_builder::Capability::{Float64, Int64, Int8};
-use spirv_builder::{MetadataPrintout, SpirvBuilder};
+use spirv_builder::{SpirvBuilder, MetadataPrintout, Capability::*};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SpirvBuilder::new("../shader", "spirv-unknown-vulkan1.0")

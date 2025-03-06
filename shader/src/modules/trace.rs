@@ -81,7 +81,6 @@ impl Ray {
         //resources: Rc<Resources>,
         //cam_data: &CamData,
         color: &mut Vector3d,
-        material_buffer: &ByteAddressableBuffer,
     ) -> (RayReturn, HitRecord) {
         self.normalize();
         let mut record = HitRecord::new(/*resources.clone()*/);
@@ -138,7 +137,6 @@ impl Ray {
         mut rng_seed: u32,
         data: &CamData,
         scene_info: &shared::SceneInfo, /* resources: &Rc<Resources>*/
-        material_buffer: &ByteAddressableBuffer,
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
 
@@ -159,7 +157,6 @@ impl Ray {
                     scene_info,
                     &mut rng_seed,
                     /*data, */ &mut curr_sample_color,
-                    material_buffer,
                 );
                 match ray_return.state {
                     RayReturnState::Ray => {

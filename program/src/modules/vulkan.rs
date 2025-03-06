@@ -76,7 +76,9 @@ impl App {
         let mut data = AppData::default();
         let instance = create_instance(window, &entry, &mut data)?;
         data.surface = vk_window::create_surface(&instance, &window, &window)?;
-        pick_physical_device(&instance, &mut data)?;
+        if pick_physical_device(&instance, &mut data, false).is_err() {
+            pick_physical_device(&instance, &mut data, true)?;
+        }
         let device = create_logical_device(&entry, &instance, &mut data)?;
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
@@ -106,7 +108,7 @@ impl App {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
         self.device
-            .wait_for_fences(&[in_flight_fence], true, u64::max_value())?;
+            .wait_for_fences(&[in_flight_fence], true, u64::MAX)?;
 
         let result = self.device.acquire_next_image_khr(
             self.data.swapchain,
@@ -124,7 +126,7 @@ impl App {
         let image_in_flight = self.data.images_in_flight[image_index];
         if !image_in_flight.is_null() {
             self.device
-                .wait_for_fences(&[image_in_flight], true, u64::max_value())?;
+                .wait_for_fences(&[image_in_flight], true, u64::MAX)?;
         }
 
         self.data.images_in_flight[image_index] = in_flight_fence;
@@ -410,11 +412,13 @@ extern "system" fn debug_callback(
 #[error("{0}")]
 pub struct SuitabilityError(pub &'static str);
 
-unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData) -> Result<()> {
+unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData, allow_integrated: bool) -> Result<()> {
     for physical_device in instance.enumerate_physical_devices()? {
+        println!("Physical Device: {:?}", physical_device);
         let properties = instance.get_physical_device_properties(physical_device);
 
-        if let Err(error) = check_physical_device(instance, data, physical_device) {
+        if let Err(error) = check_physical_device(instance, data, physical_device, allow_integrated) {
+            println!("Error: {:?}", error);
             warn!(
                 "Skipping physical device (`{}`): {}",
                 properties.device_name, error
@@ -433,12 +437,15 @@ unsafe fn check_physical_device(
     instance: &Instance,
     data: &AppData,
     physical_device: vk::PhysicalDevice,
+    allow_integrated: bool,
 ) -> Result<()> {
     QueueFamilyIndices::get(instance, data, physical_device)?;
     check_physical_device_extensions(instance, physical_device)?;
 
     let properties = instance.get_physical_device_properties(physical_device);
-    if properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU {
+    println!("Physical Device: {:?}", properties.device_type);
+    println!("Physical Device: {:?}", properties.device_name);
+    if properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU && !allow_integrated {
         return Err(anyhow!(SuitabilityError(
             "Only discrete GPUs are supported."
         )));
@@ -519,7 +526,7 @@ unsafe fn create_logical_device(
 
     // Features
 
-    let features = vk::PhysicalDeviceFeatures::builder().shader_float64(true);
+    let features = vk::PhysicalDeviceFeatures::builder().shader_float64(false);
 
     // Create
 

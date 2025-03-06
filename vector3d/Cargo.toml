@@ -4,4 +4,4 @@ version = "0.0.0"
 edition = "2018"
 
 [dependencies]
-spirv-std = "0.8.0"
+spirv-std = {workspace = true}

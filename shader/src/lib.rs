@@ -9,7 +9,7 @@ pub mod modules;
 use modules::{material::*};
 use spirv_std::byte_addressable_buffer::ByteAddressableBuffer;
 
-#[spirv(fragment())]
+#[spirv(fragment)]
 pub fn main_fs(
     #[spirv(frag_coord)] in_frag_coord: Vec4, //counts pixels, from 0 to canvas_width/canvas_height
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
@@ -17,7 +17,7 @@ pub fn main_fs(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] material_buffer: &mut [u32],
     output: &mut Vec4,
 ) {
-    let material_addressable_buffer = ByteAddressableBuffer::new(material_buffer);
+    //let material_addressable_buffer = ByteAddressableBuffer::new(material_buffer);
 
     let seed: f32 = in_frag_coord.x
         + in_frag_coord.y * 255.0
@@ -29,7 +29,6 @@ pub fn main_fs(
         seed as u32,
         data,
         scene_info,
-        &material_addressable_buffer,
     ) / 255.0; //tracer gives colors from 0 to 255
 
     *output = Vec4::new(color.x as f32, color.y as f32, color.z as f32, 1.0)
