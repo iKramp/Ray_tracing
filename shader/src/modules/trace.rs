@@ -1,6 +1,8 @@
 use super::hit::*;
 use super::material::*;
 use super::rand_float;
+use super::ObjectInfo;
+use shared::glam;
 use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
@@ -81,6 +83,7 @@ impl Ray {
         //resources: Rc<Resources>,
         //cam_data: &CamData,
         color: &mut Vector3d,
+        objects: &ObjectInfo,
     ) -> (RayReturn, HitRecord) {
         self.normalize();
         let mut record = HitRecord::new(/*resources.clone()*/);
@@ -91,9 +94,17 @@ impl Ray {
         record.ray.normalize(); //normal rendering
         record.normal.normalize();
 
-        for sphere_index in 0..scene_info.hittable_objects.len() {
-            scene_info.hittable_objects[sphere_index].hit(self, (0.00001, record.t), &mut record);
-            record.material_id = sphere_index as u32;
+        for i in 0..scene_info.num_objects as usize {
+            let object = &objects.object_buffer[i];
+            let mesh = Mesh {
+                verts: objects.vertex_buffer,
+                //tris: &objects.triangle_buffer[object.first_triangle as usize..object.last_triangle as usize],
+                tris: objects.triangle_buffer,
+                triangle_range: (object.first_triangle, object.last_triangle),
+            };
+            let ray = self.transform_by_obj_matrix(object.transform);
+            let clamp = (0.00001, record.t);
+            mesh.hit(&ray, clamp, &mut record);
         }
 
         record.ray.normalize();
@@ -137,6 +148,7 @@ impl Ray {
         mut rng_seed: u32,
         data: &CamData,
         scene_info: &shared::SceneInfo, /* resources: &Rc<Resources>*/
+        objects: &ObjectInfo,
     ) -> Vector3d {
         let mut color = Vector3d::new(0.0, 0.0, 0.0);
 
@@ -156,7 +168,8 @@ impl Ray {
                 let (ray_return, record) = vec.trace_ray(
                     scene_info,
                     &mut rng_seed,
-                    /*data, */ &mut curr_sample_color,
+                    &mut curr_sample_color,
+                    objects
                 );
                 match ray_return.state {
                     RayReturnState::Ray => {
@@ -176,5 +189,22 @@ impl Ray {
         color.z = color.z.sqrt().clamp(0.0, 0.999999999);
         color = color * 256.0;
         color
+    }
+
+    fn transform_by_obj_matrix(&self, obj_matrix: glam::Mat4) -> Self {
+        let pos = glam::Vec4::new(self.pos.x as f32, self.pos.y as f32, self.pos.z as f32, 1.0);
+        let orientation = glam::Vec4::new(
+            self.orientation.x as f32,
+            self.orientation.y as f32,
+            self.orientation.z as f32,
+            0.0,
+        );
+
+        let pos = obj_matrix * pos;
+        let orientation = obj_matrix * orientation;
+
+        let pos = Vector3d::new(pos.x as f64, pos.y as f64, pos.z as f64);
+        let orientation = Vector3d::new(orientation.x as f64, orientation.y as f64, orientation.z as f64);
+        Self::new(pos, orientation)
     }
 }

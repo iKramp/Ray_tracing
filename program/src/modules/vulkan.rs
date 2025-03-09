@@ -13,7 +13,6 @@ NOTE TO SELF: wherever you need to do anything with new descriptors, i'll write 
 
 use std::collections::HashSet;
 use std::ffi::CStr;
-use std::ops::Deref;
 use std::os::raw::c_void;
 use std::vec;
 
@@ -51,7 +50,12 @@ const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 //UPDATE DESCRIPTORS HERE
-const NUM_DESCRIPTORS: u32 = 2;
+const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
+const NUM_STORAGE_DESCRIPTORS: u32 = 3;
+
+const MAX_VERTICES: usize = 10000;
+const MAX_TRIANGLES: usize = 10000;
+const MAX_OBJECTS: usize = 100;
 
 /// Our Vulkan app.
 pub(crate) struct App {
@@ -62,6 +66,9 @@ pub(crate) struct App {
     frame: usize,
     cam_data: CamData,
     scene_info: SceneInfo,
+    vertex_buffer: Box<[Vertex]>,
+    triangle_buffer: Box<[(u32, u32, u32)]>,
+    object_buffer: Box<[Object]>,
 }
 
 impl App {
@@ -70,6 +77,9 @@ impl App {
         window: &Window,
         cam_data: CamData,
         scene_info: SceneInfo,
+        vertex_buffer: Box<[Vertex]>,
+        triangle_buffer: Box<[(u32, u32, u32)]>,
+        object_buffer: Box<[Object]>,
     ) -> Result<Self> {
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
@@ -88,6 +98,7 @@ impl App {
         create_framebuffers(&device, &mut data)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
+        create_storage_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
         create_descriptor_sets(&device, &mut data)?;
         create_command_buffers(&device, &mut data)?;
@@ -100,6 +111,9 @@ impl App {
             frame: 0,
             cam_data,
             scene_info,
+            vertex_buffer,
+            triangle_buffer,
+            object_buffer,
         })
     }
 
@@ -131,6 +145,7 @@ impl App {
 
         self.data.images_in_flight[image_index] = in_flight_fence;
 
+        //The scene does not change
         self.update_uniform_buffer(image_index)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
@@ -177,24 +192,58 @@ impl App {
         // Copy
 
         let cam_data_memory = self.device.map_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize],
+            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize],
             0,
             std::mem::size_of::<CamData>() as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.cam_data, cam_data_memory.cast(), 1);
-        self.device
-            .unmap_memory(self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize]);
+        self.device.unmap_memory(
+            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize],
+        );
 
         let scene_info_memory = self.device.map_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1],
+            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
             0,
             std::mem::size_of::<SceneInfo>() as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.scene_info, scene_info_memory.cast(), 1);
         self.device.unmap_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_DESCRIPTORS as usize + 1],
+            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
+        );
+
+        let vertex_buffer_memory = self.device.map_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
+            0,
+            std::mem::size_of::<Vertex>() as u64 * MAX_VERTICES as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(self.vertex_buffer.as_ptr(), vertex_buffer_memory.cast(), self.vertex_buffer.len());
+        self.device.unmap_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
+        );
+
+        let triangle_buffer_memory = self.device.map_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
+            0,
+            std::mem::size_of::<(u32, u32, u32)>() as u64 * MAX_TRIANGLES as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(self.triangle_buffer.as_ptr(), triangle_buffer_memory.cast(), self.triangle_buffer.len());
+        self.device.unmap_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
+        );
+
+        let object_buffer_memory = self.device.map_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
+            0,
+            std::mem::size_of::<Object>() as u64 * MAX_OBJECTS as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(self.object_buffer.as_ptr(), object_buffer_memory.cast(), self.object_buffer.len());
+        self.device.unmap_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
         );
 
         Ok(())
@@ -211,6 +260,7 @@ impl App {
         create_pipeline(&self.device, &mut self.data)?;
         create_framebuffers(&self.device, &mut self.data)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
+        create_storage_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
         create_descriptor_sets(&self.device, &mut self.data)?;
         create_command_buffers(&self.device, &mut self.data)?;
@@ -283,6 +333,9 @@ struct AppData {
     //ubo buffers
     uniform_buffers: Vec<vk::Buffer>,
     uniform_buffers_memory: Vec<vk::DeviceMemory>,
+    storage_buffers: Vec<vk::Buffer>,
+    storage_buffers_memory: Vec<vk::DeviceMemory>,
+
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Vec<vk::DescriptorSet>,
     // Command Pool
@@ -412,12 +465,17 @@ extern "system" fn debug_callback(
 #[error("{0}")]
 pub struct SuitabilityError(pub &'static str);
 
-unsafe fn pick_physical_device(instance: &Instance, data: &mut AppData, allow_integrated: bool) -> Result<()> {
+unsafe fn pick_physical_device(
+    instance: &Instance,
+    data: &mut AppData,
+    allow_integrated: bool,
+) -> Result<()> {
     for physical_device in instance.enumerate_physical_devices()? {
         println!("Physical Device: {:?}", physical_device);
         let properties = instance.get_physical_device_properties(physical_device);
 
-        if let Err(error) = check_physical_device(instance, data, physical_device, allow_integrated) {
+        if let Err(error) = check_physical_device(instance, data, physical_device, allow_integrated)
+        {
             println!("Error: {:?}", error);
             warn!(
                 "Skipping physical device (`{}`): {}",
@@ -987,7 +1045,31 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
-    let bindings = &[ubo_binding_1, ubo_binding_2];
+    let storage_buffer_binding_1 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(2)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+    let storage_buffer_binding_2 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(3)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+    let storage_buffer_binding_3 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(4)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+    let bindings = &[
+        ubo_binding_1,
+        ubo_binding_2,
+        storage_buffer_binding_1,
+        storage_buffer_binding_2,
+        storage_buffer_binding_3,
+    ];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
     data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
@@ -1105,15 +1187,69 @@ unsafe fn create_uniform_buffers(
     Ok(())
 }
 
+unsafe fn create_storage_buffers(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
+    //UPDATE DESCRIPTORS HERE
+    data.storage_buffers.clear();
+    data.storage_buffers_memory.clear();
+
+    for i in 0..data.swapchain_images.len() {
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            std::mem::size_of::<Vec<Vertex>>() as u64 * MAX_VERTICES as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.storage_buffers.push(storage_buffer);
+        data.storage_buffers_memory.push(storage_buffer_memory);
+
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            std::mem::size_of::<Vec<(u32, u32, u32)>>() as u64 * MAX_TRIANGLES as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.storage_buffers.push(storage_buffer);
+        data.storage_buffers_memory.push(storage_buffer_memory);
+
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            std::mem::size_of::<Vec<Object>>() as u64 * MAX_OBJECTS as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.storage_buffers.push(storage_buffer);
+        data.storage_buffers_memory.push(storage_buffer_memory);
+    }
+
+    Ok(())
+}
+
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(data.swapchain_images.len() as u32 * NUM_DESCRIPTORS);
+        .descriptor_count(data.swapchain_images.len() as u32 * NUM_UNIFORM_DESCRIPTORS);
 
-    let pool_sizes = &[ubo_size];
+    let storage_size = vk::DescriptorPoolSize::builder()
+        .type_(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(data.swapchain_images.len() as u32 * NUM_STORAGE_DESCRIPTORS);
+
+    let pool_sizes = &[ubo_size, storage_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
-        .max_sets(data.swapchain_images.len() as u32 * NUM_DESCRIPTORS);
+        .max_sets(data.swapchain_images.len() as u32 * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS));
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
 
@@ -1134,13 +1270,14 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
     // Update
 
     for i in 0..data.swapchain_images.len() {
+        //----------UNIFORM BUFFERS----------
         let cam_data_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.uniform_buffers[i * NUM_DESCRIPTORS as usize])
+            .buffer(data.uniform_buffers[i * NUM_UNIFORM_DESCRIPTORS as usize])
             .offset(0)
             .range(std::mem::size_of::<CamData>() as u64);
 
         let scene_info_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.uniform_buffers[i * NUM_DESCRIPTORS as usize + 1])
+            .buffer(data.uniform_buffers[i * NUM_UNIFORM_DESCRIPTORS as usize + 1])
             .offset(0)
             .range(std::mem::size_of::<SceneInfo>() as u64);
 
@@ -1152,6 +1289,31 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
             .buffer_info(buffer_info);
 
+        //----------STORAGE BUFFERS----------
+        let vertex_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize])
+            .offset(0)
+            .range(std::mem::size_of::<Vec<Vertex>>() as u64 * MAX_VERTICES as u64);
+
+        let triangle_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 1])
+            .offset(0)
+            .range(std::mem::size_of::<Vec<(u32, u32, u32)>>() as u64 * MAX_TRIANGLES as u64);
+
+        let object_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 2])
+            .offset(0)
+            .range(std::mem::size_of::<Vec<Object>>() as u64 * MAX_OBJECTS as u64);
+
+        let buffer_info = &[vertex_info, triangle_info, object_info];
+        let storage_buffer_write = vk::WriteDescriptorSet::builder()
+            .dst_set(data.descriptor_sets[i])
+            .dst_binding(2)
+            .dst_array_element(0)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(buffer_info);
+
+        //----------UPDATE DESCRIPTORS----------
         device.update_descriptor_sets(&[ubo_write], &[] as &[vk::CopyDescriptorSet]);
     }
 

@@ -1,8 +1,12 @@
+use crate::normalize_vec;
+
 //use super::material::*;
 use super::trace::*;
+use shared::Vertex;
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
+use spirv_std::TypedBuffer;
 use vector3d::Vector3d;
 
 pub struct HitRecord {
@@ -129,47 +133,11 @@ impl HitObject for shared::Sphere {
     }
 }
 
-pub struct Vertex {
-    #[allow(dead_code)]
-    pub(crate) pos: Vector3d,
-    #[allow(dead_code)]
-    uv: (f64, f64),
+pub struct Mesh<'a> {
+    pub verts: &'a [Vertex],
+    pub tris: &'a [(u32, u32, u32)],
+    pub triangle_range: (u32, u32),
 }
-
-impl Vertex {
-    pub fn new(pos: Vector3d, uv: (f64, f64)) -> Self {
-        Vertex { pos, uv }
-    }
-}
-
-impl Default for Vertex {
-    fn default() -> Self {
-        Vertex {
-            pos: Vector3d::default(),
-            uv: (0.0, 0.0),
-        }
-    }
-}
-
-/*pub struct Mesh {
-    verts: Vec<Vertex>,
-    tris: Vec<(usize, usize, usize)>,
-    material: Box<Rc<dyn Material>>,
-}
-
-impl Mesh {
-    pub fn new(
-        verts: Vec<Vertex>,
-        tris: Vec<(usize, usize, usize)>,
-        material: Box<Rc<dyn Material>>,
-    ) -> Self {
-        Mesh {
-            verts,
-            tris,
-            material,
-        }
-    }
-}*/
 
 pub(crate) fn triangle_ray_intersect(
     p0: Vector3d,
@@ -217,13 +185,13 @@ pub(crate) fn triangle_ray_intersect(
     Some(t)
 }
 
-/*impl HitObject for Mesh {
+impl HitObject for Mesh<'_> {
     fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
-        for triangle in &self.tris {
-            let vert = Vertex::default();
-            let p0 = self.verts.get(triangle.0).unwrap_or(&vert);
-            let p1 = self.verts.get(triangle.1).unwrap_or(&vert);
-            let p2 = self.verts.get(triangle.2).unwrap_or(&vert);
+        for i in self.triangle_range.0..self.triangle_range.1 {
+            let triangle = self.tris[i as usize];
+            let p0 = &self.verts[triangle.0 as usize];
+            let p1 = &self.verts[triangle.1 as usize];
+            let p2 = &self.verts[triangle.2 as usize];
             if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
                 let a = p1.pos - p0.pos;
                 let b = p2.pos - p0.pos;
@@ -243,4 +211,4 @@ pub(crate) fn triangle_ray_intersect(
     fn calculate_normal(&self, _hit: Vector3d) -> Vector3d {
         Vector3d::default() //unused
     }
-}*/
+}

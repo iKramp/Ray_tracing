@@ -1,5 +1,6 @@
 pub mod modules;
 use anyhow::Result;
+use modules::parse_obj_file;
 use std::rc::Rc;
 
 use shared::materials;
@@ -12,7 +13,7 @@ use winit::window::WindowBuilder;
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
 
-pub fn main() -> Result<()> {
+pub fn main() {
     pretty_env_logger::init();
 
     let cam_data = CamData {
@@ -21,25 +22,26 @@ pub fn main() -> Result<()> {
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 10,
+        samples: 1,
     };
 
-    let materials: Vec<materials::DiffuseMaterial> = vec![
+    let _materials: Vec<materials::DiffuseMaterial> = vec![
         materials::DiffuseMaterial::new(Vector3d::new(255.0, 0.0, 0.0)),
         materials::DiffuseMaterial::new(Vector3d::new(0.0, 0.0, 255.0)),
         materials::DiffuseMaterial::new(Vector3d::new(0.0, 255.0, 0.0)),
     ];
+
+    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"), Vector3d::new(0.0, 0.0, 1.0));
+    println!("teapot triangles: {:?}", teapot_tris.len());
+    let teapot_vert = teapot_vert.into_boxed_slice();
+    let teapot_tris = teapot_tris.into_boxed_slice();
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
     //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
-        hittable_objects: [
-            Sphere::new(Vector3d::new(0.0, 0.0, 2.0), 0.5),
-            Sphere::new(Vector3d::new(0.8, -0.3, 2.0), 0.3),
-            Sphere::new(Vector3d::new(-0.8, -0.3, 2.0), 0.3),
-        ],
+        num_objects: 1,
     };
 
     let event_loop = EventLoop::new();
@@ -50,9 +52,27 @@ pub fn main() -> Result<()> {
             cam_data.canvas_height,
         ))
         .with_resizable(false)
-        .build(&event_loop)?;
+        .build(&event_loop).unwrap();
 
-    let mut app = unsafe { modules::vulkan::App::create(&window, cam_data, scene_info)? };
+    let transform_matrix = glam::Mat4::from_scale_rotation_translation(
+        glam::Vec3::new(0.1, 0.1, 0.1),
+        glam::Quat::IDENTITY,
+        glam::Vec3::new(0.0, 0.0, 0.0),
+    );
+
+
+    let teapot_object = Object {first_triangle: 0, last_triangle: teapot_tris.len() as u32, transform: transform_matrix};
+
+    let mut app = unsafe { modules::vulkan::App::create(
+        &window, 
+        cam_data, 
+        scene_info,
+        teapot_vert,
+        teapot_tris,
+        Box::new([teapot_object]),
+
+    ).unwrap() };
+
     let mut destroying = false;
     let mut frame_count = 0;
     let mut start_time = std::time::Instant::now();

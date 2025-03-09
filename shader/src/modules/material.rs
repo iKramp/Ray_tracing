@@ -79,7 +79,6 @@ pub trait Material {
 }
 
 use shared::materials::DiffuseMaterial;
-use shared::SceneInfo;
 
 impl Material for DiffuseMaterial {
     fn get_color(&self, _record: &HitRecord, next_ray_color: &Vector3d) -> Vector3d {
@@ -93,7 +92,6 @@ impl Material for DiffuseMaterial {
 
 pub struct MetalMaterial {
     pub color: Vector3d,
-    #[allow(dead_code)]
     roughness: f64,
 }
 
