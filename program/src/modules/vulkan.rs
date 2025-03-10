@@ -296,7 +296,9 @@ impl App {
         self.device.destroy_descriptor_pool(self.data.descriptor_pool, None);
         self.device.free_command_buffers(self.data.command_pool, &self.data.command_buffers);
         self.data.uniform_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
+        self.data.storage_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
         self.data.uniform_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
+        self.data.storage_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
         self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
         self.device.destroy_pipeline(self.data.pipeline, None);
         self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
@@ -584,7 +586,7 @@ unsafe fn create_logical_device(
 
     // Features
 
-    let features = vk::PhysicalDeviceFeatures::builder().shader_float64(false);
+    let features = vk::PhysicalDeviceFeatures::builder().shader_float64(true);
 
     // Create
 
@@ -1314,7 +1316,7 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .buffer_info(buffer_info);
 
         //----------UPDATE DESCRIPTORS----------
-        device.update_descriptor_sets(&[ubo_write], &[] as &[vk::CopyDescriptorSet]);
+        device.update_descriptor_sets(&[ubo_write, storage_buffer_write], &[] as &[vk::CopyDescriptorSet]);
     }
 
     Ok(())

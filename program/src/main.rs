@@ -31,7 +31,7 @@ pub fn main() {
         materials::DiffuseMaterial::new(Vector3d::new(0.0, 255.0, 0.0)),
     ];
 
-    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"), Vector3d::new(0.0, 0.0, 1.0));
+    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"), Vector3d::new(0.0, 0.0, 10.0));
     println!("teapot triangles: {:?}", teapot_tris.len());
     let teapot_vert = teapot_vert.into_boxed_slice();
     let teapot_tris = teapot_tris.into_boxed_slice();

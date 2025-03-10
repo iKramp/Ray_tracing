@@ -26,15 +26,6 @@ pub fn main_fs(
         object_buffer,
     };
 
-    //-3 1.8 1
-
-    //let first_obj = &object_buffer[0];
-
-    //if first_obj.first_triangle == 0 {
-    //    *output = Vec4::new(0.0, 0.0, 0.0, 1.0);
-    //    return;
-    //}
-    //
 
     let seed: f32 = in_frag_coord.x
         + in_frag_coord.y * 255.0

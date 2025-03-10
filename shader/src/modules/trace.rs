@@ -3,6 +3,7 @@ use super::material::*;
 use super::rand_float;
 use super::ObjectInfo;
 use shared::glam;
+use shared::materials::DiffuseMaterial;
 use shared::CamData;
 //use crate::Resources;
 use core::f64::consts::PI;
@@ -125,7 +126,7 @@ impl Ray {
             );
         }
 
-        let material = MetalMaterial::new(Vector3d::new(230.0, 230.0, 230.0), 0.0);
+        let material = DiffuseMaterial::new(Vector3d::new(230.0, 230.0, 230.0));
 
         let ray_return = material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
         match ray_return.state {
