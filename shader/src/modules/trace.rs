@@ -126,7 +126,7 @@ impl Ray {
             );
         }
 
-        let material = DiffuseMaterial::new(Vector3d::new(230.0, 230.0, 230.0));
+        let material = DiffuseMaterial::new(Vector3d::new(230.0, 230.0, 0.0));
 
         let ray_return = material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
         match ray_return.state {

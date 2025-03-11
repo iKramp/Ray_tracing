@@ -31,7 +31,10 @@ pub fn main() {
         materials::DiffuseMaterial::new(Vector3d::new(0.0, 255.0, 0.0)),
     ];
 
-    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"), Vector3d::new(0.0, 0.0, 10.0));
+    let (teapot_vert, teapot_tris) = parse_obj_file(
+        include_str!("./resources/teapot.obj"),
+        Vector3d::new(0.0, 0.0, 0.0),
+    );
     println!("teapot triangles: {:?}", teapot_tris.len());
     let teapot_vert = teapot_vert.into_boxed_slice();
     let teapot_tris = teapot_tris.into_boxed_slice();
@@ -52,7 +55,8 @@ pub fn main() {
             cam_data.canvas_height,
         ))
         .with_resizable(false)
-        .build(&event_loop).unwrap();
+        .build(&event_loop)
+        .unwrap();
 
     let transform_matrix = glam::Mat4::from_scale_rotation_translation(
         glam::Vec3::new(0.1, 0.1, 0.1),
@@ -60,22 +64,28 @@ pub fn main() {
         glam::Vec3::new(0.0, 0.0, 0.0),
     );
 
+    let teapot_object = Object {
+        first_triangle: 0,
+        last_triangle: teapot_tris.len() as u32,
+        transform: transform_matrix,
+    };
 
-    let teapot_object = Object {first_triangle: 0, last_triangle: teapot_tris.len() as u32, transform: transform_matrix};
-
-    let mut app = unsafe { modules::vulkan::App::create(
-        &window, 
-        cam_data, 
-        scene_info,
-        teapot_vert,
-        teapot_tris,
-        Box::new([teapot_object]),
-
-    ).unwrap() };
+    let mut app = unsafe {
+        modules::vulkan::App::create(
+            &window,
+            cam_data,
+            scene_info,
+            teapot_vert,
+            teapot_tris,
+            Box::new([teapot_object]),
+        )
+        .unwrap()
+    };
 
     let mut destroying = false;
     let mut frame_count = 0;
     let mut start_time = std::time::Instant::now();
+    let mut frames = 0;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -89,7 +99,12 @@ pub fn main() {
                     frame_count = 0;
                     start_time = std::time::Instant::now();
                 }
-                app.render(&window)
+                let mut res = Ok(());
+                if frames < 3 {
+                    res = app.render(&window);
+                    frames += 1;
+                }
+                res
             }
             .unwrap(),
             // Destroy our Vulkan app.
