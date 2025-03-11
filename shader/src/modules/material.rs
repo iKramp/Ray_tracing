@@ -96,7 +96,7 @@ pub struct MetalMaterial {
 }
 
 impl MetalMaterial {
-    pub fn new(color: Vector3d, roughness: f64) -> Self {
+    pub const fn new(color: Vector3d, roughness: f64) -> Self {
         MetalMaterial { color, roughness }
     }
 }

@@ -102,6 +102,7 @@ impl Ray {
                 //tris: &objects.triangle_buffer[object.first_triangle as usize..object.last_triangle as usize],
                 tris: objects.triangle_buffer,
                 triangle_range: (object.first_triangle, object.last_triangle),
+                material_id: i as u32,
             };
             let ray = self.transform_by_obj_matrix(object.transform);
             let clamp = (0.00001, record.t);
@@ -126,19 +127,33 @@ impl Ray {
             );
         }
 
-        let material = DiffuseMaterial::new(Vector3d::new(230.0, 230.0, 0.0));
+        const MATERIAL_0: DiffuseMaterial = DiffuseMaterial::new(Vector3d::new(230.0, 230.0, 0.0));
+        const MATERIAL_1: MetalMaterial = MetalMaterial::new(Vector3d::new(200.0, 200.0, 200.0), 0.5);
 
-        let ray_return = material.get_next_ray_dir(&record, seed); //record.material.get_next_ray_dir(&record/*, rng*/);
+        let ray_return = if record.material_id == 0 {
+            MATERIAL_0.get_next_ray_dir(&record, seed) //record.material.get_next_ray_dir(&record/*, rng*/);
+        } else { 
+            MATERIAL_1.get_next_ray_dir(&record, seed)
+        };
         match ray_return.state {
             RayReturnState::Absorb => *color = Vector3d::default(),
             RayReturnState::Stop => {
-                let stop_col = material.get_stop_color(&record);
+
+                let stop_col = if record.material_id == 0 {
+                    MATERIAL_0.get_stop_color(&record)
+                } else {
+                    MATERIAL_1.get_stop_color(&record)
+                };
                 color.x *= stop_col.x;
                 color.y *= stop_col.y;
                 color.z *= stop_col.z;
             } //record.material.get_stop_color(&record),
             RayReturnState::Ray => {
-                *color = material.get_color(&record, color) //record.material.get_color(&record, next_color)
+                if record.material_id == 0 {
+                    *color = MATERIAL_0.get_color(&record, color)
+                } else {
+                    *color = MATERIAL_1.get_color(&record, color)
+                }
             }
         }
         (ray_return, record)
@@ -195,17 +210,17 @@ impl Ray {
     fn transform_by_obj_matrix(&self, obj_matrix: glam::Mat4) -> Self {
         let pos = glam::Vec4::new(self.pos.x as f32, self.pos.y as f32, self.pos.z as f32, 1.0);
         let orientation = glam::Vec4::new(
-            self.orientation.x as f32,
-            self.orientation.y as f32,
-            self.orientation.z as f32,
-            0.0,
+            self.pos.x as f32 + self.orientation.x as f32,
+            self.pos.y as f32 + self.orientation.y as f32,
+            self.pos.z as f32 + self.orientation.z as f32,
+            1.0,
         );
 
         let pos = obj_matrix * pos;
         let orientation = obj_matrix * orientation;
 
         let pos = Vector3d::new(pos.x as f64, pos.y as f64, pos.z as f64);
-        let orientation = Vector3d::new(orientation.x as f64, orientation.y as f64, orientation.z as f64);
+        let orientation = Vector3d::new(orientation.x as f64 - pos.x as f64, orientation.y as f64 - pos.y as f64, orientation.z as f64 - pos.z as f64);
         Self::new(pos, orientation)
     }
 }

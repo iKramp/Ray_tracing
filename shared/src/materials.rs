@@ -3,7 +3,7 @@ pub struct DiffuseMaterial {
 }
 
 impl DiffuseMaterial {
-    pub fn new(color: super::Vector3d) -> Self {
+    pub const fn new(color: super::Vector3d) -> Self {
         DiffuseMaterial { color }
     }
 }

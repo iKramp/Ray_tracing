@@ -6,7 +6,6 @@ use shared::Vertex;
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
-use spirv_std::TypedBuffer;
 use vector3d::Vector3d;
 
 pub struct HitRecord {
@@ -41,6 +40,7 @@ impl HitRecord {
         normal: Vector3d,
         t: f64,
         ray: &Ray,
+        material_id: u32,
         //material: Box<Rc<dyn Material>>,
         uv: (f64, f64),
     ) {
@@ -50,6 +50,7 @@ impl HitRecord {
             self.pos = pos;
             self.front_face = ray.orientation.dot(normal) < 0.0;
             self.normal = if self.front_face { normal } else { -normal };
+            self.material_id = material_id;
             //self.material = material;
             self.uv = uv;
         }
@@ -99,6 +100,7 @@ impl SphereObject for shared::Sphere {
                 normal,
                 t,
                 ray,
+                0,
                 //self.material.clone(),
                 self.get_uv(normal),
             );
@@ -137,6 +139,7 @@ pub struct Mesh<'a> {
     pub verts: &'a [Vertex],
     pub tris: &'a [(u32, u32, u32)],
     pub triangle_range: (u32, u32),
+    pub material_id: u32,
 }
 
 pub(crate) fn triangle_ray_intersect(
@@ -201,6 +204,7 @@ impl HitObject for Mesh<'_> {
                     normal,
                     t,
                     ray,
+                    self.material_id,
                     //self.material.clone(),
                     (0.0, 0.0),
                 );

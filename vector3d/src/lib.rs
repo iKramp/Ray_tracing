@@ -13,7 +13,7 @@ pub struct Vector3d {
 }
 
 impl Vector3d {
-    pub fn new(x: f64, y: f64, z: f64) -> Self {
+    pub const fn new(x: f64, y: f64, z: f64) -> Self {
         Vector3d {
             x,
             y,

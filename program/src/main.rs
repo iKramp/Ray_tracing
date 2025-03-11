@@ -22,7 +22,7 @@ pub fn main() {
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 1,
+        samples: 10,
     };
 
     let _materials: Vec<materials::DiffuseMaterial> = vec![
@@ -32,7 +32,7 @@ pub fn main() {
     ];
 
     let (teapot_vert, teapot_tris) = parse_obj_file(
-        include_str!("./resources/teapot.obj"),
+        include_str!("./resources/spike.obj"),
         Vector3d::new(0.0, 0.0, 0.0),
     );
     println!("teapot triangles: {:?}", teapot_tris.len());
@@ -44,7 +44,7 @@ pub fn main() {
     //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
         sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
-        num_objects: 1,
+        num_objects: 2,
     };
 
     let event_loop = EventLoop::new();
@@ -59,15 +59,25 @@ pub fn main() {
         .unwrap();
 
     let transform_matrix = glam::Mat4::from_scale_rotation_translation(
-        glam::Vec3::new(0.1, 0.1, 0.1),
+        glam::Vec3::new(1.0, 1.0, 1.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(0.0, 0.0, 0.0),
+        glam::Vec3::new(5.0, 0.0, -10.0),
+    );
+    let transform_matrix_2 = glam::Mat4::from_scale_rotation_translation(
+        glam::Vec3::new(1.0, 1.0, 1.0),
+        glam::Quat::IDENTITY,
+        glam::Vec3::new(-2.0, 0.0, -15.0),
     );
 
-    let teapot_object = Object {
+    let teapot_object_1 = Object {
         first_triangle: 0,
         last_triangle: teapot_tris.len() as u32,
         transform: transform_matrix,
+    };
+    let teapot_object_2 = Object {
+        first_triangle: 0,
+        last_triangle: teapot_tris.len() as u32,
+        transform: transform_matrix_2,
     };
 
     let mut app = unsafe {
@@ -77,7 +87,7 @@ pub fn main() {
             scene_info,
             teapot_vert,
             teapot_tris,
-            Box::new([teapot_object]),
+            Box::new([teapot_object_1, teapot_object_2]),
         )
         .unwrap()
     };
