@@ -1,21 +1,18 @@
-use crate::normalize_vec;
-
 //use super::material::*;
 use super::trace::*;
-use shared::Vertex;
+use shared::{glam::Vec3, Vertex};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
-use vector3d::Vector3d;
 
 pub struct HitRecord {
-    pub pos: Vector3d,
+    pub pos: Vec3,
     pub ray: Ray,
-    pub normal: Vector3d, //points toward the modules
-    pub t: f64,
+    pub normal: Vec3, //points toward the modules
+    pub t: f32,
     pub front_face: bool, //is the modules and normal on the front of the face?
     pub material_id: u32,
-    pub uv: (f64, f64),
+    pub uv: (f32, f32),
     //pub resources: Rc<Resources>,
 }
 
@@ -23,10 +20,10 @@ pub struct HitRecord {
 impl HitRecord {
     pub fn new(/*resources: Rc<Resources>*/) -> Self {
         HitRecord {
-            pos: Vector3d::default(),
-            ray: Ray::new(Vector3d::default(), Vector3d::default()),
-            normal: Vector3d::default(),
-            t: f64::INFINITY,
+            pos: Vec3::default(),
+            ray: Ray::new(Vec3::default(), Vec3::default()),
+            normal: Vec3::default(),
+            t: f32::INFINITY,
             front_face: true,
             material_id: 0,
             uv: (0.0, 0.0),
@@ -36,13 +33,13 @@ impl HitRecord {
 
     pub fn try_add(
         &mut self,
-        pos: Vector3d,
-        normal: Vector3d,
-        t: f64,
+        pos: Vec3,
+        normal: Vec3,
+        t: f32,
         ray: &Ray,
         material_id: u32,
         //material: Box<Rc<dyn Material>>,
-        uv: (f64, f64),
+        uv: (f32, f32),
     ) {
         if t < self.t {
             self.t = t;
@@ -58,27 +55,27 @@ impl HitRecord {
 }
 
 pub trait HitObject {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord);
-    fn calculate_normal(&self, hit: Vector3d) -> Vector3d;
+    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord);
+    fn calculate_normal(&self, hit: Vec3) -> Vec3;
 }
 
 pub trait SphereObject {
     //exists so we can define impl outside of shared
-    fn get_uv(&self, normal: Vector3d) -> (f64, f64);
+    fn get_uv(&self, normal: Vec3) -> (f32, f32);
     fn try_add_to_record(
         &self,
         ray: &Ray,
-        t: f64,
+        t: f32,
         record: &mut HitRecord,
-        t_clamp: (f64, f64),
+        t_clamp: (f32, f32),
     ) -> bool;
 }
 
 impl SphereObject for shared::Sphere {
-    fn get_uv(&self, normal: Vector3d) -> (f64, f64) {
-        let angle_y = (((-normal).y as f32).asin() as f64) / core::f64::consts::PI + 0.5;
+    fn get_uv(&self, normal: Vec3) -> (f32, f32) {
+        let angle_y = ((-normal).y as f32).asin() / core::f32::consts::PI + 0.5;
         let mut angle_xz =
-            ((((normal).x as f32).atan2((-normal).z as f32) as f64) / core::f64::consts::PI + 1.0)
+            ((normal).x.atan2(-normal.z) / core::f32::consts::PI + 1.0)
                 / 2.0;
         angle_xz += 1.0;
         angle_xz %= 1.0;
@@ -88,9 +85,9 @@ impl SphereObject for shared::Sphere {
     fn try_add_to_record(
         &self,
         ray: &Ray,
-        t: f64,
+        t: f32,
         record: &mut HitRecord,
-        t_clamp: (f64, f64),
+        t_clamp: (f32, f32),
     ) -> bool {
         if t < t_clamp.1 && t > t_clamp.0 {
             let hit = ray.pos + ray.orientation * t;
@@ -111,12 +108,12 @@ impl SphereObject for shared::Sphere {
 }
 
 impl HitObject for shared::Sphere {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
+    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
         //some black magic math idk
         let oc = ray.pos - self.pos;
-        let a = ray.orientation.norm2();
+        let a = ray.orientation.length_squared();
         let half_b = oc.dot(ray.orientation);
-        let c = oc.norm2() - self.radius * self.radius;
+        let c = oc.length_squared() - self.radius * self.radius;
         let discriminant = half_b * half_b - a * c;
 
         if discriminant > 0.0 {
@@ -130,7 +127,7 @@ impl HitObject for shared::Sphere {
         }
     }
 
-    fn calculate_normal(&self, hit: Vector3d) -> Vector3d {
+    fn calculate_normal(&self, hit: Vec3) -> Vec3 {
         (hit - self.pos) / self.radius
     }
 }
@@ -143,18 +140,18 @@ pub struct Mesh<'a> {
 }
 
 pub(crate) fn triangle_ray_intersect(
-    p0: Vector3d,
-    p1: Vector3d,
-    p2: Vector3d,
+    p0: Vec3,
+    p1: Vec3,
+    p2: Vec3,
     ray: &Ray,
-    t_clamp: (f64, f64),
-) -> Option<f64> {
+    t_clamp: (f32, f32),
+) -> Option<f32> {
     let a = p1 - p0;
     let b = p2 - p0;
     let normal = &mut a.cross(b);
     normal.normalize();
     let d = -(normal.dot(p0));
-    if normal.dot(ray.orientation).abs() < f64::EPSILON {
+    if normal.dot(ray.orientation).abs() < f32::EPSILON {
         return None;
     }
     let t = -(normal.dot(ray.pos) + d) / normal.dot(ray.orientation);
@@ -189,7 +186,7 @@ pub(crate) fn triangle_ray_intersect(
 }
 
 impl HitObject for Mesh<'_> {
-    fn hit(&self, ray: &Ray, t_clamp: (f64, f64), record: &mut HitRecord) {
+    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
         for i in self.triangle_range.0..self.triangle_range.1 {
             let triangle = self.tris[i as usize];
             let p0 = &self.verts[triangle.0 as usize];
@@ -198,7 +195,7 @@ impl HitObject for Mesh<'_> {
             if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
                 let a = p1.pos - p0.pos;
                 let b = p2.pos - p0.pos;
-                let normal = normalize_vec(&mut a.cross(b));
+                let normal = a.cross(b).normalize();
                 record.try_add(
                     ray.pos + ray.orientation * t,
                     normal,
@@ -212,7 +209,7 @@ impl HitObject for Mesh<'_> {
         }
     }
 
-    fn calculate_normal(&self, _hit: Vector3d) -> Vector3d {
-        Vector3d::default() //unused
+    fn calculate_normal(&self, _hit: Vec3) -> Vec3 {
+        Vec3::default() //unused
     }
 }

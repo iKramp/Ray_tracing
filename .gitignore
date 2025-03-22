@@ -3,3 +3,6 @@
 .idea
 SDL2.dll
 result
+
+#profiler samlpy
+profile.json

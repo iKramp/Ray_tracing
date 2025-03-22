@@ -1,7 +1,6 @@
 pub mod modules;
-use anyhow::Result;
+use glam::Vec3;
 use modules::parse_obj_file;
-use std::rc::Rc;
 
 use shared::materials;
 use shared::*;
@@ -17,8 +16,7 @@ pub fn main() {
     pretty_env_logger::init();
 
     let cam_data = CamData {
-        pos: glam::Vec4::new(0.0, 0.0, 0.0, 0.0),
-        orientation: glam::Vec4::new(0.0, 0.0, 1.0, 0.0),
+        transform: glam::Affine3A::IDENTITY,
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
@@ -26,15 +24,12 @@ pub fn main() {
     };
 
     let _materials: Vec<materials::DiffuseMaterial> = vec![
-        materials::DiffuseMaterial::new(Vector3d::new(255.0, 0.0, 0.0)),
-        materials::DiffuseMaterial::new(Vector3d::new(0.0, 0.0, 255.0)),
-        materials::DiffuseMaterial::new(Vector3d::new(0.0, 255.0, 0.0)),
+        materials::DiffuseMaterial::new(Vec3::new(255.0, 0.0, 0.0)),
+        materials::DiffuseMaterial::new(Vec3::new(0.0, 0.0, 255.0)),
+        materials::DiffuseMaterial::new(Vec3::new(0.0, 255.0, 0.0)),
     ];
 
-    let (teapot_vert, teapot_tris) = parse_obj_file(
-        include_str!("./resources/spike.obj"),
-        Vector3d::new(0.0, 0.0, 0.0),
-    );
+    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/spike.obj"));
     println!("teapot triangles: {:?}", teapot_tris.len());
     let teapot_vert = teapot_vert.into_boxed_slice();
     let teapot_tris = teapot_tris.into_boxed_slice();
@@ -43,7 +38,7 @@ pub fn main() {
     //let resources = Rc::new(Resources { earth: image });
     //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
-        sun_orientation: Vector3d::new(1.0, -1.0, 1.0),
+        sun_orientation: Vec3::new(1.0, -1.0, 1.0),
         num_objects: 2,
     };
 
@@ -58,26 +53,26 @@ pub fn main() {
         .build(&event_loop)
         .unwrap();
 
-    let transform_matrix = glam::Mat4::from_scale_rotation_translation(
+    let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(5.0, 0.0, -10.0),
+        glam::Vec3::new(-5.0, 0.0, 10.0),
     );
-    let transform_matrix_2 = glam::Mat4::from_scale_rotation_translation(
+    let transform_matrix_2 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(-2.0, 0.0, -15.0),
+        glam::Vec3::new(5.0, 0.0, 10.0),
     );
 
     let teapot_object_1 = Object {
         first_triangle: 0,
         last_triangle: teapot_tris.len() as u32,
-        transform: transform_matrix,
+        transform: transform_matrix.inverse(),
     };
     let teapot_object_2 = Object {
         first_triangle: 0,
         last_triangle: teapot_tris.len() as u32,
-        transform: transform_matrix_2,
+        transform: transform_matrix_2.inverse(),
     };
 
     let mut app = unsafe {
@@ -95,7 +90,6 @@ pub fn main() {
     let mut destroying = false;
     let mut frame_count = 0;
     let mut start_time = std::time::Instant::now();
-    let mut frames = 0;
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Poll;
         match event {
@@ -109,12 +103,7 @@ pub fn main() {
                     frame_count = 0;
                     start_time = std::time::Instant::now();
                 }
-                let mut res = Ok(());
-                if frames < 3 {
-                    res = app.render(&window);
-                    frames += 1;
-                }
-                res
+                app.render(&window)
             }
             .unwrap(),
             // Destroy our Vulkan app.

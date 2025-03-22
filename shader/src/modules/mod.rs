@@ -1,4 +1,3 @@
-use spirv_std::TypedBuffer;
 use shared::{Vertex, Object};
 
 pub mod hit;

@@ -8,7 +8,6 @@ edition = "2021"
 [dependencies]
 spirv-std = {workspace = true }
 shared = { path = "../shared" }
-vector3d = { path = "../vector3d" }
 
 [lib]
 crate-type = ["lib", "dylib"]

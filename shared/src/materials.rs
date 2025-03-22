@@ -1,9 +1,11 @@
+use spirv_std::glam::Vec3;
+
 pub struct DiffuseMaterial {
-    pub color: super::Vector3d,
+    pub color: Vec3,
 }
 
 impl DiffuseMaterial {
-    pub const fn new(color: super::Vector3d) -> Self {
+    pub const fn new(color: Vec3) -> Self {
         DiffuseMaterial { color }
     }
 }

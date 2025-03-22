@@ -119,8 +119,10 @@ impl App {
 
     /// Renders a frame for our Vulkan app.
     pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
+
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
+        let start_render = std::time::Instant::now();
         self.device
             .wait_for_fences(&[in_flight_fence], true, u64::MAX)?;
 
@@ -143,6 +145,7 @@ impl App {
                 .wait_for_fences(&[image_in_flight], true, u64::MAX)?;
         }
 
+        let after_wait = std::time::Instant::now();
         self.data.images_in_flight[image_index] = in_flight_fence;
 
         //The scene does not change
@@ -182,6 +185,15 @@ impl App {
         }
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
+        let after_render = std::time::Instant::now();
+        //println!(
+        //    "Render times: {:?}, {:?}, {:?}\nwait: {:?}, after-wait to after_submit: {:?}",
+        //    start_render,
+        //    after_wait,
+        //    after_render,
+        //    after_wait - start_render,
+        //    after_render - after_wait
+        //);
 
         Ok(())
     }

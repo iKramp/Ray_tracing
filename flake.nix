@@ -24,6 +24,7 @@
         pkgs.pkg-config
       ];
       buildInputs = [
+        pkgs.samply
         pkgs.wayland
         pkgs.vulkan-loader
         pkgs.wayland

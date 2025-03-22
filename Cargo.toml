@@ -4,7 +4,6 @@ members = [
     "shared",
     "shader",
     "program",
-    "vector3d",
 ]
 
 # Compile build-dependencies in release mode with

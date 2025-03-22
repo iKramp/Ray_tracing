@@ -4,7 +4,7 @@
 
 pub mod materials;
 
-use core::{f32::consts::PI, fmt::{self, Debug}};
+use core::f32::consts::PI;
 use glam::{vec3, Vec3};
 
 pub use spirv_std::glam;
@@ -63,38 +63,30 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
     x * x * (3.0 - 2.0 * x)
 }
 
-//own code
-pub use vector3d::Vector3d;
-
 #[derive(Copy, Clone, PartialEq)]
-pub struct PositionedVector3d {
-    pub pos: glam::Vec4,
-    pub orientation: glam::Vec4,
-}
-
-#[derive(Copy, Clone, PartialEq)]
+#[repr(C)]
 pub struct CamData {
-    pub pos: glam::Vec4,
-    pub orientation: glam::Vec4,
+    pub samples: u32,
+    pub transform: glam::Affine3A,
     pub canvas_width: u32,
     pub canvas_height: u32,
     pub fov: f32,
-    pub samples: u32,
 }
 
+#[repr(C)]
 pub struct SceneInfo {
-    pub sun_orientation: Vector3d,
     pub num_objects: u32,
+    pub sun_orientation: Vec3,
 }
 
 pub struct Sphere {
-    pub pos: Vector3d,
-    pub radius: f64,
-    pub padding: f64,
+    pub pos: Vec3,
+    pub radius: f32,
+    pub padding: f32,
 }
 
 impl Sphere {
-    pub fn new(pos: Vector3d, radius: f64 /*, material: Box<Rc<dyn Material>>*/) -> Self {
+    pub fn new(pos: Vec3, radius: f32 /*, material: Box<Rc<dyn Material>>*/) -> Self {
         Self {
             radius,
             pos,
@@ -105,13 +97,13 @@ impl Sphere {
 }
 
 pub struct Vertex {
-    pub pos: Vector3d,
+    pub pos: Vec3,
     #[allow(dead_code)]
-    uv: (f64, f64),
+    uv: (f32, f32),
 }
 
 impl Vertex {
-    pub fn new(pos: Vector3d, uv: (f64, f64)) -> Self {
+    pub fn new(pos: Vec3, uv: (f32, f32)) -> Self {
         Vertex { pos, uv }
     }
 }
@@ -119,14 +111,14 @@ impl Vertex {
 impl Default for Vertex {
     fn default() -> Self {
         Vertex {
-            pos: Vector3d::default(),
+            pos: Vec3::default(),
             uv: (0.0, 0.0),
         }
     }
 }
 
 pub struct Object {
+    pub transform: glam::Affine3A,
     pub first_triangle: u32,
     pub last_triangle: u32,
-    pub transform: glam::Mat4,
 }

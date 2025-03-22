@@ -1,8 +1,8 @@
 pub mod vulkan;
-
+use glam::Vec3;
 use shared::*;
 
-pub fn parse_obj_file(file: &str, transform: Vector3d) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
+pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut faces: Vec<(u32, u32, u32)> = Vec::new();
     print!("file: {}", file);
@@ -11,10 +11,10 @@ pub fn parse_obj_file(file: &str, transform: Vector3d) -> (Vec<Vertex>, Vec<(u32
         let mut line = line.split_whitespace();
         match line.next() {
             Some("v") => {
-                let x = line.next().unwrap().parse::<f64>().unwrap() + transform.x;
-                let y = line.next().unwrap().parse::<f64>().unwrap() + transform.y;
-                let z = line.next().unwrap().parse::<f64>().unwrap() + transform.z;
-                vertices.push(Vertex::new(Vector3d::new(x, y, z), (0.0, 0.0)));
+                let x = line.next().unwrap().parse::<f32>().unwrap();
+                let y = line.next().unwrap().parse::<f32>().unwrap();
+                let z = line.next().unwrap().parse::<f32>().unwrap();
+                vertices.push(Vertex::new(Vec3::new(x, y, z), (0.0, 0.0)));
             }
             Some("f") => {
                 let vertices: Vec<&str> = line.collect();
