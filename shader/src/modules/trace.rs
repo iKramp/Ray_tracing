@@ -170,8 +170,12 @@ impl Ray {
     }
 
     fn transform_by_obj_matrix(&self, obj_matrix: glam::Affine3A) -> Self {
-        //let pos = obj_matrix.transform_point3(self.pos);
-        //let orientation = obj_matrix.transform_vector3(self.orientation);
-        Self { ..*self }
+        let pos = obj_matrix.transform_point3(self.pos);
+        let orientation = obj_matrix.transform_vector3(self.orientation);
+        let orientation = orientation.normalize();
+        Ray {
+            pos,
+            orientation,
+        }
     }
 }

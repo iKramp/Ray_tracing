@@ -97,18 +97,35 @@ impl Sphere {
     }
 }
 
+#[cfg(target_arch = "spirv")]
 #[derive(Debug, Default)]
-#[repr(transparent)]
 pub struct Vertex {
     pub pos: Vec3,
 }
 
-impl Vertex {
-    pub fn new(pos: Vec3) -> Self {
-        Vertex { pos }
-    }
+#[cfg(not(target_arch = "spirv"))]
+#[derive(Debug, Default)]
+pub struct Vertex {
+    pub pos: Vec3,
+    _padding: [u8; 4],
 }
 
+impl Vertex {
+    pub fn new(pos: Vec3) -> Self {
+        #[cfg(target_arch = "spirv")]
+        {
+            Vertex { pos }
+        }
+
+        #[cfg(not(target_arch = "spirv"))]
+        {
+            Vertex {
+                pos,
+                _padding: [0; 4],
+            }
+        }
+    }
+}
 
 pub struct Object {
     pub transform: glam::Affine3A,

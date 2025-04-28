@@ -74,9 +74,7 @@ use shared::materials::DiffuseMaterial;
 
 impl Material for DiffuseMaterial {
     fn get_color(&self, _record: &HitRecord, next_ray_color: &Vec3) -> Vec3 {
-        // mult_colors(next_ray_color, &self.color)
-        let val = 30.0 * _record.t;
-        Vec3::new(val, val, val)
+        mult_colors(next_ray_color, &self.color)
     }
 
     fn get_next_ray_dir(&self, record: &HitRecord, seed: &mut u32) -> RayReturn {
