@@ -1308,14 +1308,6 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .offset(0)
             .range(std::mem::size_of::<SceneInfo>() as u64);
 
-        let buffer_info = &[cam_data_info, scene_info_info];
-        let ubo_write = vk::WriteDescriptorSet::builder()
-            .dst_set(data.descriptor_sets[i])
-            .dst_binding(0)
-            .dst_array_element(0)
-            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-            .buffer_info(buffer_info);
-
         //----------STORAGE BUFFERS----------
         let vertex_info = vk::DescriptorBufferInfo::builder()
             .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize])
@@ -1332,16 +1324,41 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .offset(0)
             .range(OBJECT_BUFFER_LEN as u64);
 
-        let buffer_info = &[vertex_info, triangle_info, object_info];
-        let storage_buffer_write = vk::WriteDescriptorSet::builder()
-            .dst_set(data.descriptor_sets[i])
-            .dst_binding(2)
-            .dst_array_element(0)
-            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-            .buffer_info(buffer_info);
+        let writes = [
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(0)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .buffer_info(&[cam_data_info])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(1)
+                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+                .buffer_info(&[scene_info_info])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(2)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .buffer_info(&[vertex_info])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(3)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .buffer_info(&[triangle_info])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(4)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .buffer_info(&[object_info])
+                .build(),
+        ];
 
         //----------UPDATE DESCRIPTORS----------
-        device.update_descriptor_sets(&[ubo_write, storage_buffer_write], &[] as &[vk::CopyDescriptorSet]);
+        device.update_descriptor_sets(&writes, &[] as &[vk::CopyDescriptorSet]);
     }
 
     Ok(())
