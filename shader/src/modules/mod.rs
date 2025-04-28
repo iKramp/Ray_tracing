@@ -15,7 +15,7 @@ pub fn xor_shift(seed: u32) -> u32 {
 pub fn rand_float(seed: &mut u32, range: (f32, f32)) -> f32 {
     let num = xor_shift(*seed);
     *seed = num;
-    (*seed & 65535) as f32 * (range.1 - range.0) / 65535.0 + range.0
+    (*seed & 65535) as f32 / 65535.0 * (range.1 - range.0) + range.0
     //return (range.0 + range.1) / 1.0;
 }
 

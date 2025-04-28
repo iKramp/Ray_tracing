@@ -1,6 +1,7 @@
 //use super::material::*;
 use super::trace::*;
 use shared::{glam::Vec3, Vertex};
+use spirv_std::num_traits::{float::FloatCore, Zero};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
@@ -73,10 +74,8 @@ pub trait SphereObject {
 
 impl SphereObject for shared::Sphere {
     fn get_uv(&self, normal: Vec3) -> (f32, f32) {
-        let angle_y = ((-normal).y as f32).asin() / core::f32::consts::PI + 0.5;
-        let mut angle_xz =
-            ((normal).x.atan2(-normal.z) / core::f32::consts::PI + 1.0)
-                / 2.0;
+        let angle_y = ((-normal).y).asin() / core::f32::consts::PI + 0.5;
+        let mut angle_xz = ((normal).x.atan2(-normal.z) / core::f32::consts::PI + 1.0) / 2.0;
         angle_xz += 1.0;
         angle_xz %= 1.0;
         (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
@@ -146,42 +145,56 @@ pub(crate) fn triangle_ray_intersect(
     ray: &Ray,
     t_clamp: (f32, f32),
 ) -> Option<f32> {
-    let a = p1 - p0;
-    let b = p2 - p0;
-    let normal = &mut a.cross(b);
-    normal.normalize();
-    let d = -(normal.dot(p0));
-    if normal.dot(ray.orientation).abs() < f32::EPSILON {
+    let u = p1 - p0;
+    let v = p2 - p0;
+    let norm = u.cross(v);
+    let denom = ray.orientation.dot(norm);
+
+    // if denom.is_zero() {
+    //     return Some(1.0);
+    // }
+    //
+    // if denom.is_subnormal() {
+    //     return Some(1.0);
+    // }
+    //
+    // if denom.is_infinite() {
+    //     return Some(1.0);
+    // }
+
+    // if u.is_nan() {
+    //     return Some(1.0);
+    // }
+    //
+    // if v.is_nan() {
+    //     return Some(1.0);
+    // }
+
+    if denom.is_nan() {
         return None;
     }
-    let t = -(normal.dot(ray.pos) + d) / normal.dot(ray.orientation);
+
+    if denom.abs() < 0.001 {
+        return None; // ray is parallel to the triangle
+    }
+
+    let d = p0 - ray.pos;
+    let t = d.dot(norm) / denom;
+
     if t < t_clamp.0 || t > t_clamp.1 {
-        return None;
+        return None; // intersection is outside the ray's range
     }
-    let hit = ray.pos + ray.orientation * t;
-    let mut c;
-
-    let edge0 = p1 - p0;
-    let vp0 = hit - p0;
-    c = edge0.cross(vp0);
-    if normal.dot(c) < 0.0 {
-        return None;
-    }
-
-    let edge1 = p2 - p1;
-    let vp1 = hit - p1;
-    c = edge1.cross(vp1);
-    if normal.dot(c) < 0.0 {
-        return None;
-    }
-
-    let edge2 = p0 - p2;
-    let vp2 = hit - p2;
-    c = edge2.cross(vp2);
-    if normal.dot(c) < 0.0 {
-        return None;
-    }
-
+    //
+    // let q = d.cross(ray.orientation);
+    // let v = ray.orientation.dot(q) / denom;
+    // if v < 0.0 || v > 1.0 {
+    //     return None; // intersection is outside the triangle
+    // }
+    // let w = u.dot(q) / denom;
+    // if w < 0.0 || v + w > 1.0 {
+    //     return None; // intersection is outside the triangle
+    // }
+    // // intersection is inside the triangle
     Some(t)
 }
 

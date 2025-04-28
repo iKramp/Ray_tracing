@@ -5,7 +5,6 @@ use shared::*;
 pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut faces: Vec<(u32, u32, u32)> = Vec::new();
-    print!("file: {}", file);
 
     for line in file.lines() {
         let mut line = line.split_whitespace();
@@ -14,7 +13,7 @@ pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
                 let x = line.next().unwrap().parse::<f32>().unwrap();
                 let y = line.next().unwrap().parse::<f32>().unwrap();
                 let z = line.next().unwrap().parse::<f32>().unwrap();
-                vertices.push(Vertex::new(Vec3::new(x, y, z), (0.0, 0.0)));
+                vertices.push(Vertex::new(Vec3::new(x, y, z)));
             }
             Some("f") => {
                 let vertices: Vec<&str> = line.collect();

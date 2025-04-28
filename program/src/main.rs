@@ -1,5 +1,5 @@
 pub mod modules;
-use glam::Vec3;
+use glam::{Quat, Vec3};
 use modules::parse_obj_file;
 
 use shared::materials;
@@ -16,11 +16,12 @@ pub fn main() {
     pretty_env_logger::init();
 
     let cam_data = CamData {
-        transform: glam::Affine3A::IDENTITY,
+        transform: glam::Affine3A::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::new(0.0, 0.0, -10.0)),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
         samples: 10,
+        depth: 5,
     };
 
     let _materials: Vec<materials::DiffuseMaterial> = vec![
@@ -29,17 +30,32 @@ pub fn main() {
         materials::DiffuseMaterial::new(Vec3::new(0.0, 255.0, 0.0)),
     ];
 
-    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/spike.obj"));
+    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/default_cube.obj"));
+    // let teapot_vert = teapot_vert.into_boxed_slice();
+    // let teapot_tris = teapot_tris.into_boxed_slice();
+    let teapot_vert = vec![
+        Vertex::new(Vec3::new(0.0, 0.0, 1.0)),
+        Vertex::new(Vec3::new(1.0, 0.0, 0.0)),
+        Vertex::new(Vec3::new(0.0, 1.0, 0.0)),
+    ].into_boxed_slice();
+    let teapot_tris = vec![(0, 1, 2), (2, 1, 0)].into_boxed_slice();
     println!("teapot triangles: {:?}", teapot_tris.len());
-    let teapot_vert = teapot_vert.into_boxed_slice();
-    let teapot_tris = teapot_tris.into_boxed_slice();
+    println!("teapot vertices: {:?}", teapot_vert.len());
+    //print vertices
+    for (i, vertex) in teapot_vert.iter().enumerate() {
+        println!("Vertex {}: {:?}", i, vertex);
+    }
+    //print faces
+    for (i, face) in teapot_tris.iter().enumerate() {
+        println!("Face {}: {:?}", i, face);
+    }
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
     //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
         sun_orientation: Vec3::new(1.0, -1.0, 1.0),
-        num_objects: 2,
+        num_objects: 1,
     };
 
     let event_loop = EventLoop::new();
@@ -56,7 +72,7 @@ pub fn main() {
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(-5.0, 0.0, 10.0),
+        glam::Vec3::new(0.0, 0.0, 10.0),
     );
     let transform_matrix_2 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
@@ -64,9 +80,14 @@ pub fn main() {
         glam::Vec3::new(5.0, 0.0, 10.0),
     );
 
+    // let teapot_object_1 = Object {
+    //     first_triangle: 0,
+    //     last_triangle: teapot_tris.len() as u32,
+    //     transform: transform_matrix.inverse(),
+    // };
     let teapot_object_1 = Object {
         first_triangle: 0,
-        last_triangle: teapot_tris.len() as u32,
+        last_triangle: 2,
         transform: transform_matrix.inverse(),
     };
     let teapot_object_2 = Object {

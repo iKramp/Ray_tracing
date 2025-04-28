@@ -67,6 +67,7 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 #[repr(C)]
 pub struct CamData {
     pub samples: u32,
+    pub depth: u32,
     pub transform: glam::Affine3A,
     pub canvas_width: u32,
     pub canvas_height: u32,
@@ -96,26 +97,18 @@ impl Sphere {
     }
 }
 
+#[derive(Debug, Default)]
+#[repr(transparent)]
 pub struct Vertex {
     pub pos: Vec3,
-    #[allow(dead_code)]
-    uv: (f32, f32),
 }
 
 impl Vertex {
-    pub fn new(pos: Vec3, uv: (f32, f32)) -> Self {
-        Vertex { pos, uv }
+    pub fn new(pos: Vec3) -> Self {
+        Vertex { pos }
     }
 }
 
-impl Default for Vertex {
-    fn default() -> Self {
-        Vertex {
-            pos: Vec3::default(),
-            uv: (0.0, 0.0),
-        }
-    }
-}
 
 pub struct Object {
     pub transform: glam::Affine3A,

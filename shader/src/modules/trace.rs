@@ -144,7 +144,7 @@ impl Ray {
             );
             vec.normalize();
 
-            for _ in 0..300 {
+            for _ in 0..data.depth {
                 //depth
                 let (ray_return, record) =
                     vec.trace_ray(scene_info, &mut rng_seed, &mut curr_sample_color, objects);
@@ -170,8 +170,8 @@ impl Ray {
     }
 
     fn transform_by_obj_matrix(&self, obj_matrix: glam::Affine3A) -> Self {
-        let pos = obj_matrix.transform_point3(self.pos);
-        let orientation = obj_matrix.transform_vector3(self.orientation);
-        Self { pos, orientation }
+        //let pos = obj_matrix.transform_point3(self.pos);
+        //let orientation = obj_matrix.transform_vector3(self.orientation);
+        Self { ..*self }
     }
 }

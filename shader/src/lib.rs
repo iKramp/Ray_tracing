@@ -1,6 +1,7 @@
 #![no_std]
 #![allow(clippy::type_complexity)]
 
+use glam::Vec3;
 use modules::ObjectInfo;
 use shared::*;
 #[allow(unused_imports)]
@@ -32,6 +33,25 @@ pub fn main_fs(
         + in_frag_coord.z * 255.0 * 255.0
         + in_frag_coord.w * 255.0 * 255.0 * 255.0;
 
+    //compare triangle buffer and custom array
+    let arr = [
+        Vertex::new(Vec3::new(0.0, 0.0, 1.0)),
+        Vertex::new(Vec3::new(1.0, 0.0, 0.0)),
+        Vertex::new(Vec3::new(0.0, 1.0, 0.0)),
+    ];
+    let arr_equal = (vertex_buffer[1].pos).length_squared() < 0.0001;
+    // for i in 0..arr.len() {
+    //     if (vertex_buffer[i].pos - arr[i].pos).length_squared() > 0.0001 {
+    //         arr_equal = false;
+    //         break;
+    //     }
+    // }
+
+
+    if arr_equal {
+        *output = Vec4::new(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
 
     let color = modules::trace::Ray::get_color(
         (in_frag_coord.x as usize, in_frag_coord.y as usize),

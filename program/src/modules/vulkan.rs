@@ -57,6 +57,11 @@ const MAX_VERTICES: usize = 10000;
 const MAX_TRIANGLES: usize = 10000;
 const MAX_OBJECTS: usize = 100;
 
+const VERTEX_BUFFER_LEN: usize = std::mem::size_of::<Vertex>() * MAX_VERTICES;
+const TRIANGLE_BUFFER_LEN: usize = std::mem::size_of::<(u32, u32, u32)>() * MAX_TRIANGLES;
+const OBJECT_BUFFER_LEN: usize = std::mem::size_of::<Object>() * MAX_OBJECTS;
+
+
 /// Our Vulkan app.
 pub(crate) struct App {
     entry: Entry,
@@ -214,6 +219,8 @@ impl App {
             self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize],
         );
 
+        //---------------
+
         let scene_info_memory = self.device.map_memory(
             self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
             0,
@@ -225,10 +232,12 @@ impl App {
             self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
         );
 
+        //----------------STORAGE DESCRIPTORS----------------
+
         let vertex_buffer_memory = self.device.map_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
             0,
-            std::mem::size_of::<Vertex>() as u64 * MAX_VERTICES as u64,
+            VERTEX_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(self.vertex_buffer.as_ptr(), vertex_buffer_memory.cast(), self.vertex_buffer.len());
@@ -236,10 +245,12 @@ impl App {
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
         );
 
+        //---------------
+
         let triangle_buffer_memory = self.device.map_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
             0,
-            std::mem::size_of::<(u32, u32, u32)>() as u64 * MAX_TRIANGLES as u64,
+            TRIANGLE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(self.triangle_buffer.as_ptr(), triangle_buffer_memory.cast(), self.triangle_buffer.len());
@@ -247,10 +258,12 @@ impl App {
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
         );
 
+        //---------------
+
         let object_buffer_memory = self.device.map_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
             0,
-            std::mem::size_of::<Object>() as u64 * MAX_OBJECTS as u64,
+            OBJECT_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(self.object_buffer.as_ptr(), object_buffer_memory.cast(), self.object_buffer.len());
@@ -1215,7 +1228,7 @@ unsafe fn create_storage_buffers(
             instance,
             device,
             data,
-            std::mem::size_of::<Vec<Vertex>>() as u64 * MAX_VERTICES as u64,
+            VERTEX_BUFFER_LEN as u64,
             vk::BufferUsageFlags::STORAGE_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
@@ -1227,7 +1240,7 @@ unsafe fn create_storage_buffers(
             instance,
             device,
             data,
-            std::mem::size_of::<Vec<(u32, u32, u32)>>() as u64 * MAX_TRIANGLES as u64,
+            TRIANGLE_BUFFER_LEN as u64,
             vk::BufferUsageFlags::STORAGE_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
@@ -1239,7 +1252,7 @@ unsafe fn create_storage_buffers(
             instance,
             device,
             data,
-            std::mem::size_of::<Vec<Object>>() as u64 * MAX_OBJECTS as u64,
+            OBJECT_BUFFER_LEN as u64,
             vk::BufferUsageFlags::STORAGE_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )?;
@@ -1307,17 +1320,17 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
         let vertex_info = vk::DescriptorBufferInfo::builder()
             .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize])
             .offset(0)
-            .range(std::mem::size_of::<Vec<Vertex>>() as u64 * MAX_VERTICES as u64);
+            .range(VERTEX_BUFFER_LEN as u64);
 
         let triangle_info = vk::DescriptorBufferInfo::builder()
             .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 1])
             .offset(0)
-            .range(std::mem::size_of::<Vec<(u32, u32, u32)>>() as u64 * MAX_TRIANGLES as u64);
+            .range(TRIANGLE_BUFFER_LEN as u64);
 
         let object_info = vk::DescriptorBufferInfo::builder()
             .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 2])
             .offset(0)
-            .range(std::mem::size_of::<Vec<Object>>() as u64 * MAX_OBJECTS as u64);
+            .range(OBJECT_BUFFER_LEN as u64);
 
         let buffer_info = &[vertex_info, triangle_info, object_info];
         let storage_buffer_write = vk::WriteDescriptorSet::builder()

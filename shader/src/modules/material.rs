@@ -74,7 +74,9 @@ use shared::materials::DiffuseMaterial;
 
 impl Material for DiffuseMaterial {
     fn get_color(&self, _record: &HitRecord, next_ray_color: &Vec3) -> Vec3 {
-        mult_colors(next_ray_color, &self.color)
+        // mult_colors(next_ray_color, &self.color)
+        let val = 30.0 * _record.t;
+        Vec3::new(val, val, val)
     }
 
     fn get_next_ray_dir(&self, record: &HitRecord, seed: &mut u32) -> RayReturn {
@@ -149,8 +151,7 @@ impl Material for BackgroundMaterial {
         let mut temp = record.ray;
         temp.normalize();
         let factor = (temp.orientation.y + 0.5).clamp(0.0, 0.0);
-        Vec3::new(255.0, 255.0, 255.0) * (1.0 - factor)
-            + Vec3::new(127.5, 178.5, 255.0) * factor
+        Vec3::new(255.0, 255.0, 255.0) * (1.0 - factor) + Vec3::new(127.5, 178.5, 255.0) * factor
     }
 }
 
