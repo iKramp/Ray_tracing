@@ -6,6 +6,7 @@ use shared::glam;
 use shared::glam::Vec3;
 use shared::glam::Vec4;
 use shared::materials::DiffuseMaterial;
+use shared::BoundingBox;
 use shared::CamData;
 //use crate::Resources;
 use core::f32::consts::PI;
@@ -62,7 +63,9 @@ impl Ray {
         record.ray.normalize();
 
         for i in 0..scene_info.num_objects as usize {
-            let object = &objects.object_buffer[i];
+            let instance = &objects.instance_buffer[i];
+            let object = &objects.object_buffer[instance.object_id as usize];
+
             let mesh = Mesh {
                 verts: objects.vertex_buffer,
                 //tris: &objects.triangle_buffer[object.first_triangle as usize..object.last_triangle as usize],
@@ -70,7 +73,10 @@ impl Ray {
                 triangle_range: (object.first_triangle, object.last_triangle),
                 material_id: i as u32,
             };
-            let ray = self.transform_by_obj_matrix(object.transform);
+            let ray = self.transform_by_obj_matrix(instance.transform);
+            if !ray.hits_bounding(&object.bounding_box) {
+                continue;
+            }
             let clamp = (0.00001, record.t);
             mesh.hit(&ray, clamp, &mut record);
         }
@@ -177,5 +183,28 @@ impl Ray {
             pos,
             orientation,
         }
+    }
+
+    fn hits_bounding(&self, bounding_box: &BoundingBox) -> bool {
+        let mut t_min = (bounding_box.min - self.pos) / self.orientation;
+        let mut t_max = (bounding_box.max - self.pos) / self.orientation;
+
+        if t_min.x > t_max.x {
+            core::mem::swap(&mut t_min.x, &mut t_max.x);
+        }
+        if t_min.y > t_max.y {
+            core::mem::swap(&mut t_min.y, &mut t_max.y);
+        }
+        if t_min.z > t_max.z {
+            core::mem::swap(&mut t_min.z, &mut t_max.z);
+        }
+
+        let t_near = f32::max(t_min.x, f32::max(t_min.y, t_min.z));
+        let t_far = f32::min(t_max.x, f32::min(t_max.y, t_max.z));
+
+        if t_near > 0.0 && t_near < f32::INFINITY && t_near < t_far {
+            return true;
+        }
+        false
     }
 }

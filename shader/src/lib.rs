@@ -19,12 +19,14 @@ pub fn main_fs(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 2)] vertex_buffer: &[Vertex],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] triangle_buffer: &[(u32, u32, u32)],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] object_buffer: &[Object],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] instance_buffer: &[Instance],
     output: &mut Vec4,
 ) {
     let objects = ObjectInfo {
         vertex_buffer,
         triangle_buffer,
         object_buffer,
+        instance_buffer,
     };
 
 

@@ -127,8 +127,22 @@ impl Vertex {
     }
 }
 
+pub struct BoundingBox {
+    pub min: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub padding_1: [u8; 4],
+    pub max: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub padding_2: [u8; 4],
+}
+
 pub struct Object {
-    pub transform: glam::Affine3A,
     pub first_triangle: u32,
     pub last_triangle: u32,
+    pub bounding_box: BoundingBox,
+}
+
+pub struct Instance {
+    pub transform: glam::Affine3A,
+    pub object_id: u32,
 }

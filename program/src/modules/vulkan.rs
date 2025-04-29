@@ -26,7 +26,7 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
-use shared::*;
+use shared::{Vertex, CamData, Instance as ObjInstance, Object, SceneInfo};
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
@@ -51,15 +51,17 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
-const NUM_STORAGE_DESCRIPTORS: u32 = 3;
+const NUM_STORAGE_DESCRIPTORS: u32 = 4;
 
 const MAX_VERTICES: usize = 10000;
 const MAX_TRIANGLES: usize = 10000;
 const MAX_OBJECTS: usize = 100;
+const MAX_INSTANCES: usize = 1000;
 
 const VERTEX_BUFFER_LEN: usize = std::mem::size_of::<Vertex>() * MAX_VERTICES;
 const TRIANGLE_BUFFER_LEN: usize = std::mem::size_of::<(u32, u32, u32)>() * MAX_TRIANGLES;
 const OBJECT_BUFFER_LEN: usize = std::mem::size_of::<Object>() * MAX_OBJECTS;
+const INSTANCE_BUFFER_LEN: usize = std::mem::size_of::<ObjInstance>() * MAX_INSTANCES;
 
 
 /// Our Vulkan app.
@@ -74,6 +76,7 @@ pub(crate) struct App {
     vertex_buffer: Box<[Vertex]>,
     triangle_buffer: Box<[(u32, u32, u32)]>,
     object_buffer: Box<[Object]>,
+    instance_buffer: Box<[ObjInstance]>,
 }
 
 impl App {
@@ -85,6 +88,7 @@ impl App {
         vertex_buffer: Box<[Vertex]>,
         triangle_buffer: Box<[(u32, u32, u32)]>,
         object_buffer: Box<[Object]>,
+        instance_buffer: Box<[ObjInstance]>,
     ) -> Result<Self> {
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
@@ -119,6 +123,7 @@ impl App {
             vertex_buffer,
             triangle_buffer,
             object_buffer,
+            instance_buffer,
         })
     }
 
@@ -269,6 +274,19 @@ impl App {
         memcpy(self.object_buffer.as_ptr(), object_buffer_memory.cast(), self.object_buffer.len());
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
+        );
+
+        //---------------
+
+        let instance_buffer_memory = self.device.map_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
+            0,
+            INSTANCE_BUFFER_LEN as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(self.instance_buffer.as_ptr(), instance_buffer_memory.cast(), self.instance_buffer.len());
+        self.device.unmap_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
         );
 
         Ok(())
@@ -1090,12 +1108,20 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
+    let storage_buffer_binding_4 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(5)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
+
     let bindings = &[
         ubo_binding_1,
         ubo_binding_2,
         storage_buffer_binding_1,
         storage_buffer_binding_2,
         storage_buffer_binding_3,
+        storage_buffer_binding_4,
     ];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
@@ -1259,6 +1285,18 @@ unsafe fn create_storage_buffers(
 
         data.storage_buffers.push(storage_buffer);
         data.storage_buffers_memory.push(storage_buffer_memory);
+
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            INSTANCE_BUFFER_LEN as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.storage_buffers.push(storage_buffer);
+        data.storage_buffers_memory.push(storage_buffer_memory);
     }
 
     Ok(())
@@ -1324,6 +1362,11 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .offset(0)
             .range(OBJECT_BUFFER_LEN as u64);
 
+        let instance_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 3])
+            .offset(0)
+            .range(INSTANCE_BUFFER_LEN as u64);
+
         let writes = [
             vk::WriteDescriptorSet::builder()
                 .dst_set(data.descriptor_sets[i])
@@ -1354,6 +1397,12 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
                 .dst_binding(4)
                 .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
                 .buffer_info(&[object_info])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(5)
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .buffer_info(&[instance_info])
                 .build(),
         ];
 

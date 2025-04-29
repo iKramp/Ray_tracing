@@ -32,13 +32,10 @@ pub fn main() {
         materials::DiffuseMaterial::new(Vec3::new(0.0, 255.0, 0.0)),
     ];
 
-    let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"));
+    let (teapot_vert, teapot_tris, bounding_box) = parse_obj_file(include_str!("./resources/teapot.obj"));
     let teapot_vert = teapot_vert.into_boxed_slice();
     let teapot_tris = teapot_tris.into_boxed_slice();
 
-    //let image = image::open("program/resources/earth_4.jpg").unwrap();
-    //let resources = Rc::new(Resources { earth: image });
-    //let normal_material = Rc::new(NormalMaterial {});
     let scene_info = SceneInfo {
         sun_orientation: Vec3::new(1.0, -1.0, 1.0),
         num_objects: 2,
@@ -71,16 +68,24 @@ pub fn main() {
     //     last_triangle: teapot_tris.len() as u32,
     //     transform: transform_matrix.inverse(),
     // };
-    let teapot_object_1 = Object {
+    let teapot_object = Object {
         first_triangle: 0,
         last_triangle: teapot_tris.len() as u32,
+        bounding_box,
+    };
+
+    let teapot_instance_1 = Instance {
         transform: transform_matrix.inverse(),
+        object_id: 0,
     };
-    let teapot_object_2 = Object {
-        first_triangle: 0,
-        last_triangle: teapot_tris.len() as u32,
+
+    let teapot_instance_2 = Instance {
         transform: transform_matrix_2.inverse(),
+        object_id: 0,
     };
+
+    let instances = Box::new([teapot_instance_1, teapot_instance_2]);
+    assert!(instances.len() == scene_info.num_objects as usize);
 
     let mut app = unsafe {
         modules::vulkan::App::create(
@@ -89,7 +94,8 @@ pub fn main() {
             scene_info,
             teapot_vert,
             teapot_tris,
-            Box::new([teapot_object_1, teapot_object_2]),
+            Box::new([teapot_object]),
+            instances,
         )
         .unwrap()
     };

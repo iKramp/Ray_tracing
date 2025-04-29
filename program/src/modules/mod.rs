@@ -2,7 +2,7 @@ pub mod vulkan;
 use glam::Vec3;
 use shared::*;
 
-pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
+pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>, BoundingBox) {
     let mut vertices: Vec<Vertex> = Vec::new();
     let mut faces: Vec<(u32, u32, u32)> = Vec::new();
 
@@ -29,5 +29,19 @@ pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
         }
     }
 
-    (vertices, faces)
+    let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
+    let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
+    for vertex in &vertices {
+        min = min.min(vertex.pos);
+        max = max.max(vertex.pos);
+    }
+
+    let bounding_box = BoundingBox {
+        min,
+        padding_1: [0; 4],
+        max,
+        padding_2: [0; 4],
+    };
+
+    (vertices, faces, bounding_box)
 }
