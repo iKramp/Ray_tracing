@@ -145,38 +145,6 @@ pub(crate) fn triangle_ray_intersect(
     ray: &Ray,
     t_clamp: (f32, f32),
 ) -> Option<f32> {
-    // let u = p1 - p0;
-    // let v = p2 - p0;
-    // let norm = u.cross(v);
-    // let denom = ray.orientation.dot(norm);
-    //
-    // if denom.is_nan() {
-    //     return None;
-    // }
-    //
-    // if denom.abs() < 0.001 {
-    //     return None; // ray is parallel to the triangle
-    // }
-    //
-    // let d = p0 - ray.pos;
-    // let t = d.dot(norm) / denom;
-    //
-    // if t < t_clamp.0 || t > t_clamp.1 {
-    //     return None; // intersection is outside the ray's range
-    // }
-    //
-    // let q = d.cross(ray.orientation);
-    // let v = ray.orientation.dot(q) / denom;
-    // if v < 0.0 || v > 1.0 {
-    //     return None; // intersection is outside the triangle
-    // }
-    // let w = u.dot(q) / denom;
-    // if w < 0.0 || v + w > 1.0 {
-    //     return None; // intersection is outside the triangle
-    // }
-    // // intersection is inside the triangle
-
-
     let a = p1 - p0;
     let b = p2 - p0;
     let normal = &mut a.cross(b);

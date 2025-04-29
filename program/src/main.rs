@@ -11,18 +11,18 @@ use winit::event::{Event, WindowEvent};
 use winit::event_loop::{ControlFlow, EventLoop};
 use winit::window::WindowBuilder;
 
-const WIDTH: usize = 1280;
-const HEIGHT: usize = 720;
+const WIDTH: usize = 1280 / 2;
+const HEIGHT: usize = 720 / 2;
 
 pub fn main() {
     pretty_env_logger::init();
 
     let cam_data = CamData {
-        transform: glam::Affine3A::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::new(0.0, 0.0, -10.0)),
+        transform: glam::Affine3A::from_scale_rotation_translation(Vec3::ONE, Quat::IDENTITY, Vec3::new(0.0, 0.0, -5.0)),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 1,
+        samples: 3,
         depth: 5,
     };
 
@@ -35,22 +35,6 @@ pub fn main() {
     let (teapot_vert, teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"));
     let teapot_vert = teapot_vert.into_boxed_slice();
     let teapot_tris = teapot_tris.into_boxed_slice();
-    // let teapot_vert = vec![
-    //     Vertex::new(Vec3::new(0.0, 0.0, 1.0)),
-    //     Vertex::new(Vec3::new(1.0, 0.0, 0.0)),
-    //     Vertex::new(Vec3::new(0.0, 1.0, 0.0)),
-    // ].into_boxed_slice();
-    // let teapot_tris = vec![(0, 1, 2), (2, 1, 0)].into_boxed_slice();
-    println!("teapot triangles: {:?}", teapot_tris.len());
-    println!("teapot vertices: {:?}", teapot_vert.len());
-    //print vertices
-    for (i, vertex) in teapot_vert.iter().enumerate() {
-        println!("Vertex {}: {:?}", i, vertex);
-    }
-    //print faces
-    for (i, face) in teapot_tris.iter().enumerate() {
-        println!("Face {}: {:?}", i, face);
-    }
 
     //let image = image::open("program/resources/earth_4.jpg").unwrap();
     //let resources = Rc::new(Resources { earth: image });
@@ -74,12 +58,12 @@ pub fn main() {
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(0.0, 0.0, 8.0),
+        glam::Vec3::new(0.0, 0.0, 0.0),
     );
     let transform_matrix_2 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 2.0, 1.0),
         glam::Quat::from_rotation_x(f32::consts::PI),
-        glam::Vec3::new(2.0, 0.0, 10.0),
+        glam::Vec3::new(2.0, 0.0, 3.0),
     );
 
     // let teapot_object_1 = Object {
