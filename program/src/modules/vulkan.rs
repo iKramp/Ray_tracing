@@ -12,12 +12,14 @@ NOTE TO SELF: wherever you need to do anything with new descriptors, i'll write 
 )]
 
 use std::collections::HashSet;
+use std::f32::consts::PI;
 use std::ffi::CStr;
 use std::os::raw::c_void;
 use std::vec;
 
 use anyhow::{anyhow, Result};
 use log::*;
+use shared::glam::{self, Affine3A, Quat, Vec3};
 use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
@@ -30,6 +32,8 @@ use shared::{Vertex, CamData, Instance as ObjInstance, Object, SceneInfo};
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
+
+use shared::Bvh;
 
 /// Whether the validation layers should be enabled.
 const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
@@ -51,17 +55,19 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
-const NUM_STORAGE_DESCRIPTORS: u32 = 4;
+const NUM_STORAGE_DESCRIPTORS: u32 = 5;
 
 const MAX_VERTICES: usize = 10000;
-const MAX_TRIANGLES: usize = 10000;
+const MAX_TRIANGLES: usize = 100000;
 const MAX_OBJECTS: usize = 100;
 const MAX_INSTANCES: usize = 1000;
+const MAX_BVH_NODES: usize = MAX_VERTICES; //this more than covers all possible vertices in a scene
 
 const VERTEX_BUFFER_LEN: usize = std::mem::size_of::<Vertex>() * MAX_VERTICES;
 const TRIANGLE_BUFFER_LEN: usize = std::mem::size_of::<(u32, u32, u32)>() * MAX_TRIANGLES;
 const OBJECT_BUFFER_LEN: usize = std::mem::size_of::<Object>() * MAX_OBJECTS;
 const INSTANCE_BUFFER_LEN: usize = std::mem::size_of::<ObjInstance>() * MAX_INSTANCES;
+const BVH_BUFFER_LEN: usize = std::mem::size_of::<Bvh>() * MAX_BVH_NODES;
 
 
 /// Our Vulkan app.
@@ -71,15 +77,50 @@ pub(crate) struct App {
     data: AppData,
     device: Device,
     frame: usize,
-    cam_data: CamData,
+    orientation: (f32, f32),
+    pub cam_data: CamData,
     scene_info: SceneInfo,
     vertex_buffer: Box<[Vertex]>,
     triangle_buffer: Box<[(u32, u32, u32)]>,
     object_buffer: Box<[Object]>,
     instance_buffer: Box<[ObjInstance]>,
+    bvh_buffer: Box<[Bvh]>
 }
 
 impl App {
+    pub fn update_mouse(&mut self, mouse_x: f32, mouse_y: f32) {
+        let (scale, rotation, translation) = self.cam_data.transform.to_scale_rotation_translation();
+
+        self.orientation.0 += mouse_x * 0.006;
+        self.orientation.1 += -mouse_y * 0.006;
+        self.orientation.1 = self.orientation.1.clamp(-PI / 2.0, PI / 2.0);
+
+        let rotation = Quat::from_euler(
+            glam::EulerRot::YXZ,
+            self.orientation.0,
+            self.orientation.1,
+            0.0,
+        );
+        
+        let transform_matrix = Affine3A::from_scale_rotation_translation(
+            scale,
+            rotation,
+            translation,
+        );
+
+        self.cam_data.transform = transform_matrix;
+    }
+
+    pub fn update_pos(&mut self, pos: Vec3) {
+        let (scale, rotation, translation) = self.cam_data.transform.to_scale_rotation_translation();
+        self.cam_data.transform = Affine3A::from_scale_rotation_translation(
+            scale,
+            rotation,
+            translation + pos,
+        );
+    }
+
+
     /// Creates our Vulkan app.
     pub(crate) unsafe fn create(
         window: &Window,
@@ -89,7 +130,15 @@ impl App {
         triangle_buffer: Box<[(u32, u32, u32)]>,
         object_buffer: Box<[Object]>,
         instance_buffer: Box<[ObjInstance]>,
+        bvh_buffer: Box<[Bvh]>
     ) -> Result<Self> {
+        assert!(vertex_buffer.len() <= MAX_VERTICES);
+        assert!(triangle_buffer.len() <= MAX_TRIANGLES);
+        assert!(object_buffer.len() <= MAX_OBJECTS);
+        assert!(instance_buffer.len() <= MAX_INSTANCES);
+        assert!(bvh_buffer.len() <= MAX_BVH_NODES);
+
+
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
         let mut data = AppData::default();
@@ -116,6 +165,7 @@ impl App {
             entry,
             instance,
             data,
+            orientation: (0.0, 0.0),
             device,
             frame: 0,
             cam_data,
@@ -124,6 +174,7 @@ impl App {
             triangle_buffer,
             object_buffer,
             instance_buffer,
+            bvh_buffer
         })
     }
 
@@ -158,7 +209,6 @@ impl App {
         let after_wait = std::time::Instant::now();
         self.data.images_in_flight[image_index] = in_flight_fence;
 
-        //The scene does not change
         self.update_uniform_buffer(image_index)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
@@ -204,6 +254,8 @@ impl App {
         //    after_wait - start_render,
         //    after_render - after_wait
         //);
+
+        window.request_redraw();
 
         Ok(())
     }
@@ -287,6 +339,19 @@ impl App {
         memcpy(self.instance_buffer.as_ptr(), instance_buffer_memory.cast(), self.instance_buffer.len());
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
+        );
+
+        //---------------
+
+        let bvh_buffer_memory = self.device.map_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
+            0,
+            INSTANCE_BUFFER_LEN as u64,
+            vk::MemoryMapFlags::empty(),
+        )?;
+        memcpy(self.bvh_buffer.as_ptr(), bvh_buffer_memory.cast(), self.bvh_buffer.len());
+        self.device.unmap_memory(
+            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
         );
 
         Ok(())
@@ -513,13 +578,13 @@ pub struct SuitabilityError(pub &'static str);
 unsafe fn pick_physical_device(
     instance: &Instance,
     data: &mut AppData,
-    allow_integrated: bool,
+    integrated: bool,
 ) -> Result<()> {
     for physical_device in instance.enumerate_physical_devices()? {
         println!("Physical Device: {:?}", physical_device);
         let properties = instance.get_physical_device_properties(physical_device);
 
-        if let Err(error) = check_physical_device(instance, data, physical_device, allow_integrated)
+        if let Err(error) = check_physical_device(instance, data, physical_device, integrated)
         {
             println!("Error: {:?}", error);
             warn!(
@@ -540,7 +605,7 @@ unsafe fn check_physical_device(
     instance: &Instance,
     data: &AppData,
     physical_device: vk::PhysicalDevice,
-    allow_integrated: bool,
+    integrated: bool,
 ) -> Result<()> {
     QueueFamilyIndices::get(instance, data, physical_device)?;
     check_physical_device_extensions(instance, physical_device)?;
@@ -548,9 +613,16 @@ unsafe fn check_physical_device(
     let properties = instance.get_physical_device_properties(physical_device);
     println!("Physical Device: {:?}", properties.device_type);
     println!("Physical Device: {:?}", properties.device_name);
-    if properties.device_type != vk::PhysicalDeviceType::DISCRETE_GPU && !allow_integrated {
+    let is_integrated = properties.device_type == vk::PhysicalDeviceType::INTEGRATED_GPU;
+    let is_discrete = properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU;
+    if is_integrated && !integrated {
         return Err(anyhow!(SuitabilityError(
-            "Only discrete GPUs are supported."
+            "Integrated GPU was requested."
+        )));
+    }
+    if is_discrete && integrated {
+        return Err(anyhow!(SuitabilityError(
+            "Discrete GPU was requested."
         )));
     }
 
@@ -1114,6 +1186,12 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
+    let storage_buffer_binding_5 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(6)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+
 
     let bindings = &[
         ubo_binding_1,
@@ -1122,6 +1200,7 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         storage_buffer_binding_2,
         storage_buffer_binding_3,
         storage_buffer_binding_4,
+        storage_buffer_binding_5,
     ];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
@@ -1297,6 +1376,18 @@ unsafe fn create_storage_buffers(
 
         data.storage_buffers.push(storage_buffer);
         data.storage_buffers_memory.push(storage_buffer_memory);
+
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            BVH_BUFFER_LEN as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )?;
+
+        data.storage_buffers.push(storage_buffer);
+        data.storage_buffers_memory.push(storage_buffer_memory);
     }
 
     Ok(())
@@ -1367,42 +1458,23 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .offset(0)
             .range(INSTANCE_BUFFER_LEN as u64);
 
+        let bvh_info = vk::DescriptorBufferInfo::builder()
+            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 4])
+            .offset(0)
+            .range(BVH_BUFFER_LEN as u64);
+
         let writes = [
             vk::WriteDescriptorSet::builder()
                 .dst_set(data.descriptor_sets[i])
                 .dst_binding(0)
                 .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .buffer_info(&[cam_data_info])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(1)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .buffer_info(&[scene_info_info])
+                .buffer_info(&[cam_data_info, scene_info_info])
                 .build(),
             vk::WriteDescriptorSet::builder()
                 .dst_set(data.descriptor_sets[i])
                 .dst_binding(2)
                 .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[vertex_info])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(3)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[triangle_info])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(4)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[object_info])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(5)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[instance_info])
+                .buffer_info(&[vertex_info, triangle_info, object_info, instance_info, bvh_info])
                 .build(),
         ];
 

@@ -122,7 +122,7 @@ impl Material for NormalMaterial {
     fn get_next_ray_dir(&self, _record: &HitRecord, _seed: &mut u32) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
-            ray: Vec3::default(),
+            ray: Vec3::new(100.0, 100.0, 100.0),
         }
     }
 
@@ -132,6 +132,7 @@ impl Material for NormalMaterial {
             (record.normal.y + 1.0) * 255.0 / 2.0,
             (record.normal.z + 1.0) * 255.0 / 2.0,
         )
+
     }
 }
 

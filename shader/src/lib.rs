@@ -1,7 +1,6 @@
 #![no_std]
 #![allow(clippy::type_complexity)]
 
-use glam::Vec3;
 use modules::ObjectInfo;
 use shared::*;
 #[allow(unused_imports)]
@@ -20,6 +19,7 @@ pub fn main_fs(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] triangle_buffer: &[(u32, u32, u32)],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] object_buffer: &[Object],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] instance_buffer: &[Instance],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] bvh_buffer: &[Bvh],
     output: &mut Vec4,
 ) {
     let objects = ObjectInfo {
@@ -27,6 +27,7 @@ pub fn main_fs(
         triangle_buffer,
         object_buffer,
         instance_buffer,
+        bvh_buffer,
     };
 
 
@@ -34,8 +35,6 @@ pub fn main_fs(
         + in_frag_coord.y * 255.0
         + in_frag_coord.z * 255.0 * 255.0
         + in_frag_coord.w * 255.0 * 255.0 * 255.0;
-
-    //compare triangle buffer and custom array
 
     let color = modules::trace::Ray::get_color(
         (in_frag_coord.x as usize, in_frag_coord.y as usize),

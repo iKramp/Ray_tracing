@@ -77,6 +77,8 @@ pub struct CamData {
 #[repr(C)]
 pub struct SceneInfo {
     pub num_objects: u32,
+    pub num_bvh_nodes: u32,
+    pub num_triangles: u32,
     pub sun_orientation: Vec3,
 }
 
@@ -97,16 +99,11 @@ impl Sphere {
     }
 }
 
-#[cfg(target_arch = "spirv")]
 #[derive(Debug, Default)]
+#[repr(C, align(16))]
 pub struct Vertex {
     pub pos: Vec3,
-}
-
-#[cfg(not(target_arch = "spirv"))]
-#[derive(Debug, Default)]
-pub struct Vertex {
-    pub pos: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
     _padding: [u8; 4],
 }
 
@@ -127,6 +124,8 @@ impl Vertex {
     }
 }
 
+#[derive(Debug)]
+#[repr(C, align(16))]
 pub struct BoundingBox {
     pub min: Vec3,
     #[cfg(not(target_arch = "spirv"))]
@@ -137,12 +136,26 @@ pub struct BoundingBox {
 }
 
 pub struct Object {
-    pub first_triangle: u32,
-    pub last_triangle: u32,
-    pub bounding_box: BoundingBox,
+    pub bvh_root: u32,
 }
 
 pub struct Instance {
     pub transform: glam::Affine3A,
     pub object_id: u32,
+}
+
+#[derive(Debug)]
+#[repr(C, align(16))]
+pub struct Bvh {
+    pub bounding_box: BoundingBox,
+    pub child_1_or_first_tri: u32,
+    pub child_2_or_last_tri: u32,
+    pub mode: ChildTriangleMode,
+}
+
+#[derive(Debug)]
+#[repr(u32)]
+pub enum ChildTriangleMode {
+    Children = 0,
+    Triangles = 1,
 }

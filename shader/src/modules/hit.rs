@@ -1,6 +1,6 @@
 //use super::material::*;
 use super::trace::*;
-use shared::{glam::Vec3, Vertex};
+use shared::{glam::Vec3, Bvh, Vertex};
 use spirv_std::num_traits::{float::FloatCore, Zero};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
@@ -9,6 +9,7 @@ use spirv_std::num_traits::Float;
 pub struct HitRecord {
     pub pos: Vec3,
     pub ray: Ray,
+    pub normal_fixed: bool,
     pub normal: Vec3, //points toward the modules
     pub t: f32,
     pub front_face: bool, //is the modules and normal on the front of the face?
@@ -23,6 +24,7 @@ impl HitRecord {
         HitRecord {
             pos: Vec3::default(),
             ray: Ray::new(Vec3::default(), Vec3::default()),
+            normal_fixed: true,
             normal: Vec3::default(),
             t: f32::INFINITY,
             front_face: true,
@@ -47,6 +49,7 @@ impl HitRecord {
             self.ray = *ray;
             self.pos = pos;
             self.front_face = ray.orientation.dot(normal) < 0.0;
+            self.normal_fixed = false;
             self.normal = if self.front_face { normal } else { -normal };
             self.material_id = material_id;
             //self.material = material;
@@ -134,11 +137,75 @@ impl HitObject for shared::Sphere {
 pub struct Mesh<'a> {
     pub verts: &'a [Vertex],
     pub tris: &'a [(u32, u32, u32)],
-    pub triangle_range: (u32, u32),
     pub material_id: u32,
+    pub bvh_buffer: &'a [Bvh],
+    pub bvh_root: u32,
 }
 
-pub(crate) fn triangle_ray_intersect(
+impl Mesh<'_> {
+    fn hit_triangle(&self, i: u32, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
+        let triangle = self.tris[i as usize];
+        let p0 = &self.verts[triangle.0 as usize];
+        let p1 = &self.verts[triangle.1 as usize];
+        let p2 = &self.verts[triangle.2 as usize];
+        if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
+            let a = p1.pos - p0.pos;
+            let b = p2.pos - p0.pos;
+            let normal = b.cross(a).normalize();
+            record.try_add(
+                ray.pos + ray.orientation * t,
+                normal,
+                t,
+                ray,
+                self.material_id,
+                (0.0, 0.0),
+            );
+        }
+    }
+    
+    fn hit_bvh(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
+        let mut stack = [0_u32; 32];
+        let mut stack_size = 1;
+        stack[0] = self.bvh_root;
+        while stack_size > 0 {
+            let node = &self.bvh_buffer[stack[stack_size - 1] as usize];
+
+            if !ray.hits_bounding(&node.bounding_box) {
+                stack_size -= 1;
+                continue;
+            }
+
+
+            if matches!(node.mode, shared::ChildTriangleMode::Children) {
+                stack[stack_size - 1] = node.child_1_or_first_tri;
+                stack[stack_size] = node.child_2_or_last_tri;
+                stack_size += 1;
+                continue;
+            }
+
+            stack_size -= 1;
+
+
+            let first_triangle = node.child_1_or_first_tri;
+            let last_triangle = node.child_2_or_last_tri;
+            for i in first_triangle..=last_triangle {
+                self.hit_triangle(i, ray, t_clamp, record);
+            }
+        }
+    }
+}
+
+impl HitObject for Mesh<'_> {
+    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
+        self.hit_bvh(ray, t_clamp, record)
+    }
+
+    fn calculate_normal(&self, _hit: Vec3) -> Vec3 {
+        Vec3::default() //unused
+    }
+}
+
+fn triangle_ray_intersect(
     p0: Vec3,
     p1: Vec3,
     p2: Vec3,
@@ -182,31 +249,3 @@ pub(crate) fn triangle_ray_intersect(
     Some(t)
 }
 
-impl HitObject for Mesh<'_> {
-    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
-        for i in self.triangle_range.0..self.triangle_range.1 {
-            let triangle = self.tris[i as usize];
-            let p0 = &self.verts[triangle.0 as usize];
-            let p1 = &self.verts[triangle.1 as usize];
-            let p2 = &self.verts[triangle.2 as usize];
-            if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
-                let a = p1.pos - p0.pos;
-                let b = p2.pos - p0.pos;
-                let normal = a.cross(b).normalize();
-                record.try_add(
-                    ray.pos + ray.orientation * t,
-                    normal,
-                    t,
-                    ray,
-                    self.material_id,
-                    //self.material.clone(),
-                    (0.0, 0.0),
-                );
-            }
-        }
-    }
-
-    fn calculate_normal(&self, _hit: Vec3) -> Vec3 {
-        Vec3::default() //unused
-    }
-}

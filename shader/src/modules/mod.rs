@@ -1,4 +1,4 @@
-use shared::{Instance, Object, Vertex};
+use shared::{Bvh, Instance, Object, Vertex};
 
 pub mod hit;
 pub mod material;
@@ -24,4 +24,5 @@ pub struct ObjectInfo<'a> {
     pub triangle_buffer: &'a [(u32, u32, u32)],
     pub object_buffer: &'a [Object],
     pub instance_buffer: &'a [Instance],
+    pub bvh_buffer: &'a [Bvh],
 }
