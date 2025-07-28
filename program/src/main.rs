@@ -24,13 +24,16 @@ pub fn main() {
         transform: glam::Affine3A::from_scale_rotation_translation(
             Vec3::ONE,
             Quat::IDENTITY,
-            Vec3::new(0.0, 0.0, -10.0),
+            Vec3::new(0.0, 0.0, -15.0),
         ),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 5,
+        samples: 1,
         depth: 5,
+        debug_number: 128,
+        debug_information: DebugInformation::None,
+        frame: 0,
     };
 
     let _materials: Vec<materials::DiffuseMaterial> = vec![
@@ -41,42 +44,67 @@ pub fn main() {
 
     let (teapot_vert, mut teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"));
 
-    let (sandal_vert, mut sandal_tris) = parse_obj_file(include_str!("./resources/sandal.obj"));
+    // let (sandal_vert, mut sandal_tris) = parse_obj_file(include_str!("./resources/sandal.obj"));
+
+    let (cube_vert, mut cube_tris) = parse_obj_file(include_str!("./resources/cornel_box.obj"));
 
     let teapot_bvh = create_bvh(teapot_vert.as_ref(), teapot_tris.as_mut());
+    // let mut sandal_bvh = create_bvh(sandal_vert.as_ref(), sandal_tris.as_mut());
+    let mut cube_bvh = create_bvh(cube_vert.as_ref(), cube_tris.as_mut());
 
     let teapot_tris_len = teapot_tris.len() as u32;
     let teapot_verts_len = teapot_vert.len() as u32;
     let teapot_bvh_len = teapot_bvh.len() as u32;
+    // let sandal_tris_len = sandal_tris.len() as u32;
+    // let sandal_verts_len = sandal_vert.len() as u32;
+    // let sandal_bvh_len = sandal_bvh.len() as u32;
 
-    let mut sandal_bvh = create_bvh(sandal_vert.as_ref(), sandal_tris.as_mut());
-    for triangle in sandal_tris.iter_mut() {
-        triangle.0 += teapot_verts_len;
-        triangle.1 += teapot_verts_len;
-        triangle.2 += teapot_verts_len;
+    // for triangle in sandal_tris.iter_mut() {
+    //     triangle.0 += teapot_verts_len;
+    //     triangle.1 += teapot_verts_len;
+    //     triangle.2 += teapot_verts_len;
+    // }
+
+    for triangle in cube_tris.iter_mut() {
+        triangle.0 += teapot_verts_len;//+ sandal_verts_len;
+        triangle.1 += teapot_verts_len;//+ sandal_verts_len;
+        triangle.2 += teapot_verts_len;//+ sandal_verts_len;
     }
 
-    for sandal_bvh_node in sandal_bvh.iter_mut() {
-        if matches!(sandal_bvh_node.mode, ChildTriangleMode::Children) {
-            sandal_bvh_node.child_1_or_first_tri += teapot_bvh_len;
-            sandal_bvh_node.child_2_or_last_tri += teapot_bvh_len;
+    // for sandal_bvh_node in sandal_bvh.iter_mut() {
+    //     if matches!(sandal_bvh_node.mode, ChildTriangleMode::Children) {
+    //         sandal_bvh_node.child_1_or_first_tri += teapot_bvh_len;
+    //         sandal_bvh_node.child_2_or_last_tri += teapot_bvh_len;
+    //     } else {
+    //         sandal_bvh_node.child_1_or_first_tri += teapot_tris_len;
+    //         sandal_bvh_node.child_2_or_last_tri += teapot_tris_len;
+    //     }
+    // }
+
+    for cube_bvh_node in cube_bvh.iter_mut() {
+        if matches!(cube_bvh_node.mode, ChildTriangleMode::Children) {
+            cube_bvh_node.child_1_or_first_tri += teapot_bvh_len;// + sandal_bvh_len;
+            cube_bvh_node.child_2_or_last_tri += teapot_bvh_len;// + sandal_bvh_len;
         } else {
-            sandal_bvh_node.child_1_or_first_tri += teapot_tris_len;
-            sandal_bvh_node.child_2_or_last_tri += teapot_tris_len;
+            cube_bvh_node.child_1_or_first_tri += teapot_tris_len;// + sandal_tris_len;
+            cube_bvh_node.child_2_or_last_tri += teapot_tris_len;// + sandal_tris_len;
         }
     }
 
     let mut final_vert = Vec::new();
     final_vert.extend(teapot_vert);
-    final_vert.extend(sandal_vert);
+    // final_vert.extend(sandal_vert);
+    final_vert.extend(cube_vert);
 
     let mut final_tris = Vec::new();
     final_tris.extend(teapot_tris);
-    final_tris.extend(sandal_tris);
+    // final_tris.extend(sandal_tris);
+    final_tris.extend(cube_tris);
 
     let mut final_bvh = Vec::new();
     final_bvh.extend(teapot_bvh);
-    final_bvh.extend(sandal_bvh);
+    // final_bvh.extend(sandal_bvh);
+    final_bvh.extend(cube_bvh);
 
     println!(
         "merged: {} vertices, {} triangles, {} BVH nodes",
@@ -106,22 +134,40 @@ pub fn main() {
         glam::Vec3::new(2.0, 2.0, 5.0),
     );
 
+    let transform_matrix_3 = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(20.0, 20.0, 20.0),
+        glam::Quat::IDENTITY,
+        glam::Vec3::new(0.0, 0.0, 0.0),
+    );
+
     let teapot_object = Object { bvh_root: 0 };
     let sandal_object = Object {
         bvh_root: teapot_bvh_len as u32,
     };
+    let cube_object = Object {
+        bvh_root: teapot_bvh_len as u32,// + sandal_bvh_len as u32,
+    };
 
-    let teapot_instance_1 = Instance {
+    let teapot_instance = Instance {
         transform: transform_matrix.inverse(),
         object_id: 0,
     };
 
-    let teapot_instance_2 = Instance {
+    let sandal_instance = Instance {
         transform: transform_matrix_2.inverse(),
         object_id: 1,
     };
 
-    let instances = Box::new([teapot_instance_1, teapot_instance_2]);
+    let cube_instance = Instance {
+        transform: transform_matrix_3.inverse(),
+        object_id: 2,
+    };
+
+    let instances = Box::new([
+        teapot_instance,
+        // sandal_instance,
+        cube_instance,
+    ]);
     assert!(instances.len() == scene_info.num_objects as usize);
 
     let mut winit_app = WinitApp {
@@ -133,7 +179,7 @@ pub fn main() {
         scene_info: Some(scene_info),
         vertex_buffer: Some(final_vert.into_boxed_slice()),
         triangle_buffer: Some(final_tris.into_boxed_slice()),
-        object_buffer: Some(Box::new([teapot_object, sandal_object])),
+        object_buffer: Some(Box::new([teapot_object, sandal_object, cube_object])),
         instance_buffer: Some(instances),
         bvh_buffer: Some(final_bvh.into_boxed_slice()),
     };
@@ -196,7 +242,9 @@ impl ApplicationHandler for WinitApp {
                     self.frame_count = 0;
                     self.start_time = std::time::Instant::now();
                 }
+                println!("frame: {}", app.cam_data.frame);
                 unsafe { app.render(window).unwrap() };
+                app.cam_data.frame += 1;
             }
         } else if let WindowEvent::CloseRequested = event {
             if let Some((_app, _window)) = &mut self.app {
@@ -265,6 +313,37 @@ impl ApplicationHandler for WinitApp {
                                 .unwrap();
                         }
                     }
+                    PhysicalKey::Code(KeyCode::Enter) => {
+                        if event.state == winit::event::ElementState::Released {
+                            return;
+                        }
+                        app.cam_data.debug_information = match app.cam_data.debug_information {
+                            DebugInformation::None => DebugInformation::TriangleIntersection,
+                            DebugInformation::TriangleIntersection => {
+                                DebugInformation::BvhIntersection
+                            }
+                            DebugInformation::BvhIntersection => DebugInformation::None,
+                        };
+                        println!(
+                            "debug information: {:?}",
+                            app.cam_data.debug_information
+                        );
+                    }
+                    PhysicalKey::Code(KeyCode::NumpadAdd) => {
+                        if event.state == winit::event::ElementState::Released {
+                            return;
+                        }
+                        app.cam_data.debug_number *= 2;
+                        println!("debug_number: {}", app.cam_data.debug_number);
+                    }
+                    PhysicalKey::Code(KeyCode::NumpadSubtract) => {
+                        if event.state == winit::event::ElementState::Released {
+                            return;
+                        }
+                        app.cam_data.debug_number /= 2;
+                        println!("debug number: {}", app.cam_data.debug_number);
+                    }
+
                     _ => {}
                 }
             }

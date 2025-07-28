@@ -11,3 +11,8 @@ shared = { path = "../shared" }
 
 [lib]
 crate-type = ["lib", "dylib"]
+
+# debug feature
+[features]
+default = ["debug"]
+debug = []

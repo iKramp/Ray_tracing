@@ -28,7 +28,7 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
-use shared::{Vertex, CamData, Instance as ObjInstance, Object, SceneInfo};
+use shared::{CamData, Instance as ObjInstance, Object, SceneInfo, Vertex};
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
@@ -56,6 +56,8 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
 const NUM_STORAGE_DESCRIPTORS: u32 = 5;
+const NUM_IMAGE_BUFFERS: u32 = 1;
+
 
 const MAX_VERTICES: usize = 10000;
 const MAX_TRIANGLES: usize = 100000;
@@ -68,7 +70,6 @@ const TRIANGLE_BUFFER_LEN: usize = std::mem::size_of::<(u32, u32, u32)>() * MAX_
 const OBJECT_BUFFER_LEN: usize = std::mem::size_of::<Object>() * MAX_OBJECTS;
 const INSTANCE_BUFFER_LEN: usize = std::mem::size_of::<ObjInstance>() * MAX_INSTANCES;
 const BVH_BUFFER_LEN: usize = std::mem::size_of::<Bvh>() * MAX_BVH_NODES;
-
 
 /// Our Vulkan app.
 pub(crate) struct App {
@@ -84,12 +85,13 @@ pub(crate) struct App {
     triangle_buffer: Box<[(u32, u32, u32)]>,
     object_buffer: Box<[Object]>,
     instance_buffer: Box<[ObjInstance]>,
-    bvh_buffer: Box<[Bvh]>
+    bvh_buffer: Box<[Bvh]>,
 }
 
 impl App {
     pub fn update_mouse(&mut self, mouse_x: f32, mouse_y: f32) {
-        let (scale, rotation, translation) = self.cam_data.transform.to_scale_rotation_translation();
+        let (scale, rotation, translation) =
+            self.cam_data.transform.to_scale_rotation_translation();
 
         self.orientation.0 += mouse_x * 0.006;
         self.orientation.1 += -mouse_y * 0.006;
@@ -101,25 +103,19 @@ impl App {
             self.orientation.1,
             0.0,
         );
-        
-        let transform_matrix = Affine3A::from_scale_rotation_translation(
-            scale,
-            rotation,
-            translation,
-        );
+
+        let transform_matrix =
+            Affine3A::from_scale_rotation_translation(scale, rotation, translation);
 
         self.cam_data.transform = transform_matrix;
     }
 
     pub fn update_pos(&mut self, pos: Vec3) {
-        let (scale, rotation, translation) = self.cam_data.transform.to_scale_rotation_translation();
-        self.cam_data.transform = Affine3A::from_scale_rotation_translation(
-            scale,
-            rotation,
-            translation + pos,
-        );
+        let (scale, rotation, translation) =
+            self.cam_data.transform.to_scale_rotation_translation();
+        self.cam_data.transform =
+            Affine3A::from_scale_rotation_translation(scale, rotation, translation + pos);
     }
-
 
     /// Creates our Vulkan app.
     pub(crate) unsafe fn create(
@@ -130,14 +126,13 @@ impl App {
         triangle_buffer: Box<[(u32, u32, u32)]>,
         object_buffer: Box<[Object]>,
         instance_buffer: Box<[ObjInstance]>,
-        bvh_buffer: Box<[Bvh]>
+        bvh_buffer: Box<[Bvh]>,
     ) -> Result<Self> {
         assert!(vertex_buffer.len() <= MAX_VERTICES);
         assert!(triangle_buffer.len() <= MAX_TRIANGLES);
         assert!(object_buffer.len() <= MAX_OBJECTS);
         assert!(instance_buffer.len() <= MAX_INSTANCES);
         assert!(bvh_buffer.len() <= MAX_BVH_NODES);
-
 
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
@@ -150,10 +145,8 @@ impl App {
         let device = create_logical_device(&entry, &instance, &mut data)?;
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
-        create_render_pass(&instance, &device, &mut data)?;
         create_descriptor_set_layout(&device, &mut data)?;
         create_pipeline(&device, &mut data)?;
-        create_framebuffers(&device, &mut data)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_storage_buffers(&instance, &device, &mut data)?;
@@ -174,13 +167,12 @@ impl App {
             triangle_buffer,
             object_buffer,
             instance_buffer,
-            bvh_buffer
+            bvh_buffer,
         })
     }
 
     /// Renders a frame for our Vulkan app.
     pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
-
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
         let start_render = std::time::Instant::now();
@@ -212,7 +204,7 @@ impl App {
         self.update_uniform_buffer(image_index)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
-        let wait_stages = &[vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
+        let wait_stages = &[vk::PipelineStageFlags::COMPUTE_SHADER];
         let command_buffers = &[self.data.command_buffers[image_index]];
         let signal_semaphores = &[self.data.render_finished_semaphores[self.frame]];
         let submit_info = vk::SubmitInfo::builder()
@@ -224,7 +216,7 @@ impl App {
         self.device.reset_fences(&[in_flight_fence])?;
 
         self.device
-            .queue_submit(self.data.graphics_queue, &[submit_info], in_flight_fence)?;
+            .queue_submit(self.data.compute_queue, &[submit_info], in_flight_fence)?;
 
         let swapchains = &[self.data.swapchain];
         let image_indices = &[image_index as u32];
@@ -246,14 +238,6 @@ impl App {
 
         self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
         let after_render = std::time::Instant::now();
-        //println!(
-        //    "Render times: {:?}, {:?}, {:?}\nwait: {:?}, after-wait to after_submit: {:?}",
-        //    start_render,
-        //    after_wait,
-        //    after_render,
-        //    after_wait - start_render,
-        //    after_render - after_wait
-        //);
 
         window.request_redraw();
 
@@ -297,7 +281,11 @@ impl App {
             VERTEX_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-        memcpy(self.vertex_buffer.as_ptr(), vertex_buffer_memory.cast(), self.vertex_buffer.len());
+        memcpy(
+            self.vertex_buffer.as_ptr(),
+            vertex_buffer_memory.cast(),
+            self.vertex_buffer.len(),
+        );
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
         );
@@ -310,7 +298,11 @@ impl App {
             TRIANGLE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-        memcpy(self.triangle_buffer.as_ptr(), triangle_buffer_memory.cast(), self.triangle_buffer.len());
+        memcpy(
+            self.triangle_buffer.as_ptr(),
+            triangle_buffer_memory.cast(),
+            self.triangle_buffer.len(),
+        );
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
         );
@@ -323,7 +315,11 @@ impl App {
             OBJECT_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-        memcpy(self.object_buffer.as_ptr(), object_buffer_memory.cast(), self.object_buffer.len());
+        memcpy(
+            self.object_buffer.as_ptr(),
+            object_buffer_memory.cast(),
+            self.object_buffer.len(),
+        );
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
         );
@@ -336,7 +332,11 @@ impl App {
             INSTANCE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-        memcpy(self.instance_buffer.as_ptr(), instance_buffer_memory.cast(), self.instance_buffer.len());
+        memcpy(
+            self.instance_buffer.as_ptr(),
+            instance_buffer_memory.cast(),
+            self.instance_buffer.len(),
+        );
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
         );
@@ -349,7 +349,11 @@ impl App {
             INSTANCE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
-        memcpy(self.bvh_buffer.as_ptr(), bvh_buffer_memory.cast(), self.bvh_buffer.len());
+        memcpy(
+            self.bvh_buffer.as_ptr(),
+            bvh_buffer_memory.cast(),
+            self.bvh_buffer.len(),
+        );
         self.device.unmap_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
         );
@@ -364,9 +368,6 @@ impl App {
         self.destroy_swapchain();
         create_swapchain(window, &self.instance, &self.device, &mut self.data)?;
         create_swapchain_image_views(&self.device, &mut self.data)?;
-        create_render_pass(&self.instance, &self.device, &mut self.data)?;
-        create_pipeline(&self.device, &mut self.data)?;
-        create_framebuffers(&self.device, &mut self.data)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
         create_storage_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
@@ -408,9 +409,6 @@ impl App {
         self.data.uniform_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
         self.data.storage_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
         self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
-        self.device.destroy_pipeline(self.data.pipeline, None);
-        self.device.destroy_pipeline_layout(self.data.pipeline_layout, None);
-        self.device.destroy_render_pass(self.data.render_pass, None);
         self.data.swapchain_image_views.iter().for_each(|v| self.device.destroy_image_view(*v, None));
         self.device.destroy_swapchain_khr(self.data.swapchain, None);
     }
@@ -425,7 +423,7 @@ struct AppData {
     surface: vk::SurfaceKHR,
     // Physical Device / Logical Device
     physical_device: vk::PhysicalDevice,
-    graphics_queue: vk::Queue,
+    compute_queue: vk::Queue,
     present_queue: vk::Queue,
     // Swapchain
     swapchain_format: vk::Format,
@@ -445,6 +443,8 @@ struct AppData {
     uniform_buffers_memory: Vec<vk::DeviceMemory>,
     storage_buffers: Vec<vk::Buffer>,
     storage_buffers_memory: Vec<vk::DeviceMemory>,
+    image_buffers: Vec<vk::Buffer>,
+    image_buffers_memory: Vec<vk::DeviceMemory>,
 
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Vec<vk::DescriptorSet>,
@@ -584,8 +584,7 @@ unsafe fn pick_physical_device(
         println!("Physical Device: {:?}", physical_device);
         let properties = instance.get_physical_device_properties(physical_device);
 
-        if let Err(error) = check_physical_device(instance, data, physical_device, integrated)
-        {
+        if let Err(error) = check_physical_device(instance, data, physical_device, integrated) {
             println!("Error: {:?}", error);
             warn!(
                 "Skipping physical device (`{}`): {}",
@@ -616,14 +615,10 @@ unsafe fn check_physical_device(
     let is_integrated = properties.device_type == vk::PhysicalDeviceType::INTEGRATED_GPU;
     let is_discrete = properties.device_type == vk::PhysicalDeviceType::DISCRETE_GPU;
     if is_integrated && !integrated {
-        return Err(anyhow!(SuitabilityError(
-            "Integrated GPU was requested."
-        )));
+        return Err(anyhow!(SuitabilityError("Integrated GPU was requested.")));
     }
     if is_discrete && integrated {
-        return Err(anyhow!(SuitabilityError(
-            "Discrete GPU was requested."
-        )));
+        return Err(anyhow!(SuitabilityError("Discrete GPU was requested.")));
     }
 
     let support = SwapchainSupport::get(instance, data, physical_device)?;
@@ -715,7 +710,7 @@ unsafe fn create_logical_device(
 
     // Queues
 
-    data.graphics_queue = device.get_device_queue(indices.graphics, 0);
+    data.compute_queue = device.get_device_queue(indices.graphics, 0);
     data.present_queue = device.get_device_queue(indices.present, 0);
 
     Ok(device)
@@ -917,114 +912,37 @@ unsafe fn create_render_pass(
 }
 
 unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
-    // Stages
+    // Load compute shader
+    let compute_shader_code = SHADER;
+    let compute_shader_module = create_shader_module(device, compute_shader_code)?;
 
-    let frag = SHADER;
-    let vert = SHADER;
+    // Shader stage info
+    let stage_info = vk::PipelineShaderStageCreateInfo::builder()
+        .stage(vk::ShaderStageFlags::COMPUTE)
+        .module(compute_shader_module)
+        .name(b"main\0") // entry point in your GLSL or SPIR-V
+        .build();
 
-    let vert_shader_module = create_shader_module(device, vert)?;
-    let frag_shader_module = create_shader_module(device, frag)?;
-
-    let vert_stage = vk::PipelineShaderStageCreateInfo::builder()
-        .stage(vk::ShaderStageFlags::VERTEX)
-        .module(vert_shader_module)
-        .name(b"main_vs\0");
-
-    let frag_stage = vk::PipelineShaderStageCreateInfo::builder()
-        .stage(vk::ShaderStageFlags::FRAGMENT)
-        .module(frag_shader_module)
-        .name(b"main_fs\0");
-
-    // Vertex Input State
-
-    let vertex_input_state = vk::PipelineVertexInputStateCreateInfo::builder();
-
-    // Input Assembly State
-
-    let input_assembly_state = vk::PipelineInputAssemblyStateCreateInfo::builder()
-        .topology(vk::PrimitiveTopology::TRIANGLE_LIST)
-        .primitive_restart_enable(false);
-
-    // Viewport State
-
-    let viewport = vk::Viewport::builder()
-        .x(0.0)
-        .y(0.0)
-        .width(data.swapchain_extent.width as f32)
-        .height(data.swapchain_extent.height as f32)
-        .min_depth(0.0)
-        .max_depth(1.0);
-
-    let scissor = vk::Rect2D::builder()
-        .offset(vk::Offset2D { x: 0, y: 0 })
-        .extent(data.swapchain_extent);
-
-    let viewports = &[viewport];
-    let scissors = &[scissor];
-    let viewport_state = vk::PipelineViewportStateCreateInfo::builder()
-        .viewports(viewports)
-        .scissors(scissors);
-
-    // Rasterization State
-
-    let rasterization_state = vk::PipelineRasterizationStateCreateInfo::builder()
-        .depth_clamp_enable(false)
-        .rasterizer_discard_enable(false)
-        .polygon_mode(vk::PolygonMode::FILL)
-        .line_width(1.0)
-        .cull_mode(vk::CullModeFlags::BACK)
-        .front_face(vk::FrontFace::CLOCKWISE)
-        .depth_bias_enable(false);
-
-    // Multisample State
-
-    let multisample_state = vk::PipelineMultisampleStateCreateInfo::builder()
-        .sample_shading_enable(false)
-        .rasterization_samples(vk::SampleCountFlags::_1);
-
-    // Color Blend State
-
-    let attachment = vk::PipelineColorBlendAttachmentState::builder()
-        .color_write_mask(vk::ColorComponentFlags::all())
-        .blend_enable(false);
-
-    let attachments = &[attachment];
-    let color_blend_state = vk::PipelineColorBlendStateCreateInfo::builder()
-        .logic_op_enable(false)
-        .logic_op(vk::LogicOp::COPY)
-        .attachments(attachments)
-        .blend_constants([0.0, 0.0, 0.0, 0.0]);
-
-    // Layout
-
+    // Descriptor set layout(s)
     let set_layouts = &[data.descriptor_set_layout];
-    let layout_info = vk::PipelineLayoutCreateInfo::builder().set_layouts(set_layouts);
+    let layout_info = vk::PipelineLayoutCreateInfo::builder()
+        .set_layouts(set_layouts)
+        .build();
 
     data.pipeline_layout = device.create_pipeline_layout(&layout_info, None)?;
 
-    // Create
-
-    let stages = &[vert_stage, frag_stage];
-    let info = vk::GraphicsPipelineCreateInfo::builder()
-        .stages(stages)
-        .vertex_input_state(&vertex_input_state)
-        .input_assembly_state(&input_assembly_state)
-        .viewport_state(&viewport_state)
-        .rasterization_state(&rasterization_state)
-        .multisample_state(&multisample_state)
-        .color_blend_state(&color_blend_state)
+    // Compute pipeline
+    let pipeline_info = vk::ComputePipelineCreateInfo::builder()
+        .stage(stage_info)
         .layout(data.pipeline_layout)
-        .render_pass(data.render_pass)
-        .subpass(0);
+        .build();
 
-    data.pipeline = device
-        .create_graphics_pipelines(vk::PipelineCache::null(), &[info], None)?
-        .0[0];
+    let pipelines =
+        device.create_compute_pipelines(vk::PipelineCache::null(), &[pipeline_info], None)?;
+    data.pipeline = pipelines.0[0];
 
     // Cleanup
-
-    device.destroy_shader_module(vert_shader_module, None);
-    device.destroy_shader_module(frag_shader_module, None);
+    device.destroy_shader_module(compute_shader_module, None);
 
     Ok(())
 }
@@ -1090,59 +1008,44 @@ unsafe fn create_command_pool(
 //================================================
 
 unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<()> {
-    // Allocate
-
+    // Allocate command buffers (one per swapchain image)
     let allocate_info = vk::CommandBufferAllocateInfo::builder()
         .command_pool(data.command_pool)
         .level(vk::CommandBufferLevel::PRIMARY)
-        .command_buffer_count(data.framebuffers.len() as u32);
+        .command_buffer_count(data.swapchain_images.len() as u32);  // Use swapchain images count
 
     data.command_buffers = device.allocate_command_buffers(&allocate_info)?;
 
-    // Commands
+    for (i, &command_buffer) in data.command_buffers.iter().enumerate() {
+        let begin_info = vk::CommandBufferBeginInfo::builder();
 
-    for (i, command_buffer) in data.command_buffers.iter().enumerate() {
-        let info = vk::CommandBufferBeginInfo::builder();
+        device.begin_command_buffer(command_buffer, &begin_info)?;
 
-        device.begin_command_buffer(*command_buffer, &info)?;
-
-        let render_area = vk::Rect2D::builder()
-            .offset(vk::Offset2D::default())
-            .extent(data.swapchain_extent);
-
-        let color_clear_value = vk::ClearValue {
-            color: vk::ClearColorValue {
-                float32: [0.0, 0.0, 0.0, 1.0],
-            },
-        };
-
-        let clear_values = &[color_clear_value];
-        let info = vk::RenderPassBeginInfo::builder()
-            .render_pass(data.render_pass)
-            .framebuffer(data.framebuffers[i])
-            .render_area(render_area)
-            .clear_values(clear_values);
-
-        device.cmd_begin_render_pass(*command_buffer, &info, vk::SubpassContents::INLINE);
+        // Bind compute pipeline
         device.cmd_bind_pipeline(
-            *command_buffer,
-            vk::PipelineBindPoint::GRAPHICS,
+            command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
             data.pipeline,
         );
 
+        // Bind descriptor sets for compute pipeline
         device.cmd_bind_descriptor_sets(
-            *command_buffer,
-            vk::PipelineBindPoint::GRAPHICS,
+            command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
             data.pipeline_layout,
             0,
             &[data.descriptor_sets[i]],
             &[],
         );
 
-        device.cmd_draw(*command_buffer, 3, 1, 0, 0);
-        device.cmd_end_render_pass(*command_buffer);
 
-        device.end_command_buffer(*command_buffer)?;
+        let group_count_x = 16;
+        let group_count_y = 16;
+        let group_count_z = 1;
+
+        device.cmd_dispatch(command_buffer, group_count_x, group_count_y, group_count_z);
+
+        device.end_command_buffer(command_buffer)?;
     }
 
     Ok(())
@@ -1192,6 +1095,11 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
+    let image_buffer_binding_1 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(7)
+        .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
 
     let bindings = &[
         ubo_binding_1,
@@ -1201,6 +1109,7 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         storage_buffer_binding_3,
         storage_buffer_binding_4,
         storage_buffer_binding_5,
+        image_buffer_binding_1,
     ];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
@@ -1393,6 +1302,32 @@ unsafe fn create_storage_buffers(
     Ok(())
 }
 
+// unsafe fn create_image_buffers(
+//     instance: &Instance,
+//     device: &Device,
+//     data: &mut AppData,
+// ) -> Result<()> {
+//     //UPDATE DESCRIPTORS HERE
+//     data.image_buffers.clear();
+//     data.image_buffers_memory.clear();
+//
+//     for _ in 0..data.swapchain_images.len() {
+//         let (image_buffer, image_buffer_memory) = create_buffer(
+//             instance,
+//             device,
+//             data,
+//             0,
+//             vk::BufferUsageFlags::,
+//             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+//         )?;
+//
+//         data.uniform_buffers.push(uniform_buffer);
+//         data.uniform_buffers_memory.push(uniform_buffer_memory);
+//     }
+//
+//     Ok(())
+// }
+
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
@@ -1405,7 +1340,10 @@ unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<
     let pool_sizes = &[ubo_size, storage_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
-        .max_sets(data.swapchain_images.len() as u32 * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS));
+        .max_sets(
+            data.swapchain_images.len() as u32
+                * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS),
+        );
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
 
@@ -1474,7 +1412,13 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
                 .dst_set(data.descriptor_sets[i])
                 .dst_binding(2)
                 .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[vertex_info, triangle_info, object_info, instance_info, bvh_info])
+                .buffer_info(&[
+                    vertex_info,
+                    triangle_info,
+                    object_info,
+                    instance_info,
+                    bvh_info,
+                ])
                 .build(),
         ];
 

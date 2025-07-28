@@ -32,20 +32,23 @@ fn rand_vec_in_unit_cube(seed: &mut u32) -> Vec3 {
     )
 }
 
-fn rand_vec_in_unit_sphere(seed: &mut u32) -> Vec3 {
+fn rand_vec_in_unit_hemisphere(seed: &mut u32) -> Vec3 {
     let mut rand_vec = rand_vec_in_unit_cube(seed);
     while rand_vec.length_squared() > 1.0 {
         rand_vec = rand_vec_in_unit_cube(seed);
     }
+    rand_vec = rand_vec.normalize();
     rand_vec
 }
 
 fn diffuse_ray_direction(record: &HitRecord, seed: &mut u32) -> RayReturn {
     let mut rand_vec = Vec3::new(2.0, 0.0, 0.0);
     while rand_vec.length_squared() > 1.0 {
-        rand_vec = rand_vec_in_unit_sphere(seed);
+        rand_vec = rand_vec_in_unit_hemisphere(seed);
     }
-    rand_vec = rand_vec.normalize();
+    if rand_vec.dot(record.normal) < 0.0 {
+        rand_vec = -rand_vec;
+    }
 
     RayReturn {
         state: RayReturnState::Ray,
@@ -100,18 +103,15 @@ impl Material for MetalMaterial {
 
     fn get_next_ray_dir(&self, record: &HitRecord, seed: &mut u32) -> RayReturn {
         let old_ray = record.ray.orientation;
-        let mut new_ray = old_ray - record.normal * old_ray.dot(record.normal) * 2.0;
-        new_ray = new_ray.normalize() + rand_vec_in_unit_sphere(seed) * self.roughness;
-        if new_ray.dot(record.normal) > 0.0 {
-            RayReturn {
-                state: RayReturnState::Ray,
-                ray: new_ray,
-            }
-        } else {
-            RayReturn {
-                state: RayReturnState::Absorb,
-                ray: Vec3::default(),
-            }
+        let mut new_ray = old_ray.reflect(record.normal);
+        let mut rand_vec = rand_vec_in_unit_cube(seed);
+        if rand_vec.dot(record.normal) < 0.0 {
+            rand_vec = -rand_vec;
+        }
+        new_ray = new_ray.lerp(rand_vec, self.roughness);
+        RayReturn {
+            state: RayReturnState::Ray,
+            ray: new_ray,
         }
     }
 }
@@ -159,7 +159,7 @@ pub struct EmmissiveMaterial {
 }
 
 impl EmmissiveMaterial {
-    pub fn new(light_color: Vec3) -> Self {
+    pub const fn new(light_color: Vec3) -> Self {
         Self { light_color }
     }
 }

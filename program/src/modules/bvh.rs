@@ -2,15 +2,22 @@ use shared::{glam::Vec3, BoundingBox, Bvh, ChildTriangleMode, Vertex};
 
 pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec<Bvh> {
     let mut bvh_nodes = Vec::new();
-    let bounding_box = find_bounding_box(0, triangles.len() as u32 - 1, triangles, vertices);
+    let bounding_box = find_bounding_box(triangles, vertices);
     bvh_nodes.push(Bvh {
         bounding_box,
         child_1_or_first_tri: 0,
         child_2_or_last_tri: (triangles.len() - 1) as u32,
         mode: ChildTriangleMode::Triangles,
     });
+
+    println!(
+        "BVH: {} triangles, {} nodes",
+        triangles.len(),
+        bvh_nodes.len()
+    );
+
     if triangles.len() > 5 {
-        create_bvh_recursive(vertices, triangles, &mut bvh_nodes, 0);
+        create_bvh_recursive(vertices, 0, triangles, &mut bvh_nodes, 0);
     }
 
     //we allow max 16 depth per object due to gpu stack constraints
@@ -21,39 +28,23 @@ pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec
 
 fn create_bvh_recursive(
     vertices: &[Vertex],
+    start_index: u32,
     triangles: &mut [(u32, u32, u32)],
     bvh_nodes: &mut Vec<Bvh>,
     parent_node_index: u32,
 ) {
-    let parent_node = &mut bvh_nodes[parent_node_index as usize];
-    let bounding_box = &parent_node.bounding_box;
-    let size_x = bounding_box.max.x - bounding_box.min.x;
-    let size_y = bounding_box.max.y - bounding_box.min.y;
-    let size_z = bounding_box.max.z - bounding_box.min.z;
-    let split_axis = if size_x > size_y && size_x > size_z {
-        SplitAxis::X
-    } else if size_y > size_x && size_y > size_z {
-        SplitAxis::Y
-    } else {
-        SplitAxis::Z
-    };
+
+    let (split_axis, split_index) = find_ideal_split(triangles, vertices);
 
     //sort triangles
-    sort_by_axis(&mut triangles[parent_node.child_1_or_first_tri as usize..=parent_node.child_2_or_last_tri as usize], vertices, split_axis as usize);
+    sort_by_axis(triangles, vertices, split_axis as usize);
 
-    let first_triangle = parent_node.child_1_or_first_tri;
-    let mid = (parent_node.child_1_or_first_tri + parent_node.child_2_or_last_tri) / 2;
-    let last_triangle = parent_node.child_2_or_last_tri;
     let first_box = find_bounding_box(
-        parent_node.child_1_or_first_tri,
-        mid,
-        triangles,
+        &triangles[..split_index],
         vertices,
     );
     let second_box = find_bounding_box(
-        mid + 1,
-        parent_node.child_2_or_last_tri,
-        triangles,
+        &triangles[split_index..],
         vertices,
     );
 
@@ -64,38 +55,76 @@ fn create_bvh_recursive(
     bvh_nodes[parent_node_index as usize].mode = ChildTriangleMode::Children;
     bvh_nodes.push(Bvh {
         bounding_box: first_box,
-        child_1_or_first_tri: first_triangle,
-        child_2_or_last_tri: mid,
+        child_1_or_first_tri: start_index,
+        child_2_or_last_tri: start_index + split_index as u32 - 1,
         mode: ChildTriangleMode::Triangles,
     });
     bvh_nodes.push(Bvh {
         bounding_box: second_box,
-        child_1_or_first_tri: mid + 1,
-        child_2_or_last_tri: last_triangle,
+        child_1_or_first_tri: start_index + split_index as u32,
+        child_2_or_last_tri: start_index + triangles.len() as u32 - 1,
         mode: ChildTriangleMode::Triangles,
     });
 
-    if last_triangle - first_triangle > 10 {
+    // if triangles.len() > 10 {
+    //     create_bvh_recursive(vertices, start_index, &mut triangles[..split_index], bvh_nodes, child_1);
+    //     create_bvh_recursive(vertices, start_index + split_index as u32, &mut triangles[split_index..], bvh_nodes, child_2);
+    // }
+    if split_index > 16 {
         create_bvh_recursive(
             vertices,
-            triangles,
+            start_index,
+            &mut triangles[..split_index],
             bvh_nodes,
             child_1,
         );
+    }
+    println!("finished first {} triangles", split_index + start_index as usize);
+    if triangles.len() - split_index > 16 {
         create_bvh_recursive(
             vertices,
-            triangles,
+            start_index + split_index as u32,
+            &mut triangles[split_index..],
             bvh_nodes,
             child_2,
         );
     }
-
 }
 
-enum SplitAxis {
-    X = 0,
-    Y = 1,
-    Z = 2,
+fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex]) -> (u32, usize) {
+    // assert!(triangles.len() >= 4);
+    // let splits = usize::min(100, triangles.len() / 2);
+    // let splits = (triangles.len() - 1) / 16;
+    let splits = 1;
+    let mut best_result = f32::MAX;
+    let mut best_axis = 0;
+    let mut best_split = 0;
+
+    for axis in 0..3 {
+        sort_by_axis(triangles, vertices, axis);
+        let chunk_size = triangles.len() as f32 / (splits + 1) as f32;
+        for i in 0..splits {
+            let split_index = ((i as f32 + 1.0) * chunk_size).round() as usize;
+            let first_box = find_bounding_box(&triangles[..split_index], vertices);
+            let second_box = find_bounding_box(&triangles[split_index..], vertices);
+            let split_cost = box_srface_area(&first_box) + box_srface_area(&second_box);
+
+            if split_cost < best_result {
+                best_result = split_cost;
+                best_axis = axis;
+                best_split = split_index;
+            }
+        }
+    }
+
+    (best_axis as u32, best_split)
+}
+
+fn box_srface_area(bounding_box: &BoundingBox) -> f32 {
+    let size_x = bounding_box.max.x - bounding_box.min.x;
+    let size_y = bounding_box.max.y - bounding_box.min.y;
+    let size_z = bounding_box.max.z - bounding_box.min.z;
+    2.0 * (size_x * size_y + size_x * size_z + size_y * size_z)
 }
 
 fn sort_by_axis(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex], axis: usize) {
@@ -112,12 +141,11 @@ fn sort_by_axis(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex], axis: us
     });
 }
 
-pub fn find_bounding_box(first_triangle: u32, last_triangle: u32, triangles: &[(u32, u32, u32)], vertices: &[Vertex]) -> BoundingBox {
+pub fn find_bounding_box(triangles: &[(u32, u32, u32)], vertices: &[Vertex]) -> BoundingBox {
     let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
     let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
 
-    for i in first_triangle..=last_triangle {
-        let triangle = &triangles[i as usize];
+    for triangle in triangles {
         let v1 = vertices[triangle.0 as usize].pos;
         let v2 = vertices[triangle.1 as usize].pos;
         let v3 = vertices[triangle.2 as usize].pos;

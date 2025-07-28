@@ -4,6 +4,14 @@ pub mod hit;
 pub mod material;
 pub mod trace;
 
+pub fn get_seed(
+    frag_coord: (usize, usize),
+    frame: u32,
+) -> u32 {
+    let seed = (frame * 13) ^ (frag_coord.0 as u32 * 29) ^ (frag_coord.1 as u32 * 67);
+    seed
+}
+
 pub fn xor_shift(seed: u32) -> u32 {
     let mut x = seed;
     x ^= x << 13;

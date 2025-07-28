@@ -1,7 +1,6 @@
 //use super::material::*;
 use super::trace::*;
 use shared::{glam::Vec3, Bvh, Vertex};
-use spirv_std::num_traits::{float::FloatCore, Zero};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
@@ -15,6 +14,10 @@ pub struct HitRecord {
     pub front_face: bool, //is the modules and normal on the front of the face?
     pub material_id: u32,
     pub uv: (f32, f32),
+    #[cfg(feature = "debug")]
+    pub triangle_tests: u32,
+    #[cfg(feature = "debug")]
+    pub box_tests: u32,
     //pub resources: Rc<Resources>,
 }
 
@@ -30,6 +33,10 @@ impl HitRecord {
             front_face: true,
             material_id: 0,
             uv: (0.0, 0.0),
+            #[cfg(feature = "debug")]
+            triangle_tests: 0,
+            #[cfg(feature = "debug")]
+            box_tests: 0,
             //resources,
         }
     }
@@ -61,77 +68,6 @@ impl HitRecord {
 pub trait HitObject {
     fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord);
     fn calculate_normal(&self, hit: Vec3) -> Vec3;
-}
-
-pub trait SphereObject {
-    //exists so we can define impl outside of shared
-    fn get_uv(&self, normal: Vec3) -> (f32, f32);
-    fn try_add_to_record(
-        &self,
-        ray: &Ray,
-        t: f32,
-        record: &mut HitRecord,
-        t_clamp: (f32, f32),
-    ) -> bool;
-}
-
-impl SphereObject for shared::Sphere {
-    fn get_uv(&self, normal: Vec3) -> (f32, f32) {
-        let angle_y = ((-normal).y).asin() / core::f32::consts::PI + 0.5;
-        let mut angle_xz = ((normal).x.atan2(-normal.z) / core::f32::consts::PI + 1.0) / 2.0;
-        angle_xz += 1.0;
-        angle_xz %= 1.0;
-        (angle_xz.clamp(0.0, 1.0), angle_y.clamp(0.0, 1.0))
-    }
-
-    fn try_add_to_record(
-        &self,
-        ray: &Ray,
-        t: f32,
-        record: &mut HitRecord,
-        t_clamp: (f32, f32),
-    ) -> bool {
-        if t < t_clamp.1 && t > t_clamp.0 {
-            let hit = ray.pos + ray.orientation * t;
-            let normal = self.calculate_normal(hit);
-            record.try_add(
-                hit,
-                normal,
-                t,
-                ray,
-                0,
-                //self.material.clone(),
-                self.get_uv(normal),
-            );
-            return true;
-        }
-        false
-    }
-}
-
-impl HitObject for shared::Sphere {
-    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
-        //some black magic math idk
-        let oc = ray.pos - self.pos;
-        let a = ray.orientation.length_squared();
-        let half_b = oc.dot(ray.orientation);
-        let c = oc.length_squared() - self.radius * self.radius;
-        let discriminant = half_b * half_b - a * c;
-
-        if discriminant > 0.0 {
-            let root = (-half_b - discriminant.sqrt()) / a;
-            if self.try_add_to_record(ray, root, record, t_clamp) {
-                return;
-            }
-
-            let root = (-half_b + discriminant.sqrt()) / a;
-            self.try_add_to_record(ray, root, record, t_clamp);
-        }
-    }
-
-    fn calculate_normal(&self, hit: Vec3) -> Vec3 {
-        (hit - self.pos) / self.radius
-    }
 }
 
 pub struct Mesh<'a> {
@@ -170,6 +106,9 @@ impl Mesh<'_> {
         while stack_size > 0 {
             let node = &self.bvh_buffer[stack[stack_size - 1] as usize];
 
+            #[cfg(feature = "debug")]
+            record.box_tests += 1;
+
             if !ray.hits_bounding(&node.bounding_box) {
                 stack_size -= 1;
                 continue;
@@ -191,6 +130,8 @@ impl Mesh<'_> {
             for i in first_triangle..=last_triangle {
                 self.hit_triangle(i, ray, t_clamp, record);
             }
+            #[cfg(feature = "debug")]
+            record.triangle_tests += last_triangle - first_triangle + 1;
         }
     }
 }

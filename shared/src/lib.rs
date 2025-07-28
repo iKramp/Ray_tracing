@@ -72,6 +72,16 @@ pub struct CamData {
     pub canvas_width: u32,
     pub canvas_height: u32,
     pub fov: f32,
+    pub frame: u32,
+    pub debug_number: u32,
+    pub debug_information: DebugInformation,
+}
+
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum DebugInformation {
+    None,
+    TriangleIntersection,
+    BvhIntersection,
 }
 
 #[repr(C)]

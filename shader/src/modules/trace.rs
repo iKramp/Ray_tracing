@@ -55,7 +55,7 @@ impl Ray {
         scene_info: &shared::SceneInfo,
         seed: &mut u32,
         //resources: Rc<Resources>,
-        //cam_data: &CamData,
+        cam_data: &CamData,
         color: &mut Vec3,
         objects: &ObjectInfo,
     ) -> (RayReturn, HitRecord) {
@@ -85,6 +85,48 @@ impl Ray {
             }
         }
 
+        #[cfg(feature = "debug")]
+        if cam_data.debug_information == shared::DebugInformation::TriangleIntersection {
+            if record.triangle_tests > cam_data.debug_number {
+                *color = Vec3::new(255.0, 0.0, 0.0);
+            } else {
+                let color_ = Vec3::new(
+                    (record.triangle_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                    (record.triangle_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                    (record.triangle_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                );
+                *color = color_;
+            }
+            return (
+                RayReturn {
+                    state: RayReturnState::Stop,
+                    ray: Vec3::default(),
+                },
+                record,
+            );
+        }
+
+        #[cfg(feature = "debug")]
+        if cam_data.debug_information == shared::DebugInformation::BvhIntersection {
+            if record.box_tests > cam_data.debug_number {
+                *color = Vec3::new(255.0, 0.0, 0.0);
+            } else {
+                let color_ = Vec3::new(
+                    (record.box_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                    (record.box_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                    (record.box_tests as f32 / cam_data.debug_number as f32) * 255.0,
+                );
+                *color = color_;
+            }
+            return (
+                RayReturn {
+                    state: RayReturnState::Stop,
+                    ray: Vec3::default(),
+                },
+                record,
+            );
+        }
+
         if record.t == f32::INFINITY {
             let sky_material = BackgroundMaterial {};
             let stop_col = sky_material.get_stop_color(&record);
@@ -103,32 +145,39 @@ impl Ray {
         record.ray.normalize();
         record.normal = record.normal.normalize();
 
-        const MATERIAL_0: DiffuseMaterial = DiffuseMaterial::new(Vec3::new(230.0, 230.0, 0.0));
-        const MATERIAL_1: MetalMaterial = MetalMaterial::new(Vec3::new(200.0, 200.0, 200.0), 0.5);
-        const MATERIAL_2: NormalMaterial = NormalMaterial {};
+        const MATERIAL_2: DiffuseMaterial = DiffuseMaterial::new(Vec3::new(230.0, 230.0, 0.0));
+        const MATERIAL_0: MetalMaterial = MetalMaterial::new(Vec3::new(200.0, 200.0, 200.0), 0.5);
+        const MATERIAL_1: EmmissiveMaterial =
+            EmmissiveMaterial::new(Vec3::new(255.0, 200.0, 200.0));
 
-        let ray_return = if record.material_id == 0 {
+        let ray_return = if record.material_id == 1 {
             MATERIAL_1.get_next_ray_dir(&record, seed) //record.material.get_next_ray_dir(&record/*, rng*/);
-        } else {
+        } else if record.material_id == 2 {
             MATERIAL_2.get_next_ray_dir(&record, seed)
+        } else {
+            MATERIAL_0.get_next_ray_dir(&record, seed)
         };
         match ray_return.state {
             RayReturnState::Absorb => *color = Vec3::default(),
             RayReturnState::Stop => {
-                let stop_col = if record.material_id == 0 {
+                let stop_col = if record.material_id == 1 {
                     MATERIAL_1.get_stop_color(&record)
-                } else {
+                } else if record.material_id == 2 {
                     MATERIAL_2.get_stop_color(&record)
+                } else {
+                    MATERIAL_0.get_stop_color(&record)
                 };
                 color.x *= stop_col.x;
                 color.y *= stop_col.y;
                 color.z *= stop_col.z;
             } //record.material.get_stop_color(&record),
             RayReturnState::Ray => {
-                if record.material_id == 0 {
+                if record.material_id == 1 {
                     *color = MATERIAL_1.get_color(&record, color)
-                } else {
+                } else if record.material_id == 2 {
                     *color = MATERIAL_2.get_color(&record, color)
+                } else {
+                    *color = MATERIAL_0.get_color(&record, color);
                 }
             }
         }
@@ -157,8 +206,13 @@ impl Ray {
 
             for _ in 0..data.depth {
                 //depth
-                let (ray_return, record) =
-                    vec.trace_ray(scene_info, &mut rng_seed, &mut curr_sample_color, objects);
+                let (ray_return, record) = vec.trace_ray(
+                    scene_info,
+                    &mut rng_seed,
+                    data,
+                    &mut curr_sample_color,
+                    objects,
+                );
                 match ray_return.state {
                     RayReturnState::Ray => {
                         vec = Ray::new(record.pos, ray_return.ray);
@@ -183,7 +237,6 @@ impl Ray {
     fn transform_by_obj_matrix(&self, obj_matrix: glam::Affine3A) -> Self {
         let pos = obj_matrix.transform_point3(self.pos);
         let orientation = obj_matrix.transform_vector3(self.orientation);
-        let orientation = orientation.normalize();
         Ray { pos, orientation }
     }
 
