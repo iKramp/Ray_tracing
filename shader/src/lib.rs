@@ -5,11 +5,12 @@
 #![feature(stmt_expr_attributes)]
 
 use glam::{UVec3, Vec3Swizzles};
+use spirv_std::image;
 use modules::ObjectInfo;
 use shared::*;
 #[allow(unused_imports)]
 use spirv_std::glam::{vec2, vec4, Vec2, Vec4};
-use spirv_std::{image::{ImageCoordinate, StorageImage2d}, spirv};
+use spirv_std::spirv;
 pub mod modules;
 #[allow(unused_imports)]
 use modules::material::*;
@@ -17,7 +18,7 @@ use modules::material::*;
 #[spirv(compute(threads(16, 16)))]
 pub fn main(
     #[spirv(global_invocation_id)] id: UVec3,
-    #[spirv(storage_image, descriptor_set = 0, binding = 7)] output: &mut StorageImage2d,
+    #[spirv(uniform_constant, descriptor_set = 0, binding = 7)] output: &image::Image!(2D, sampled=false, __crate_root=crate, format=rgba32f),
 
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
     #[spirv(uniform, descriptor_set = 0, binding = 1)] scene_info: &SceneInfo,
@@ -55,7 +56,6 @@ pub fn main(
         scene_info,
         &objects,
     );
-
 
     // output[out_coord as usize] = Vec4::new(color.x, color.y, color.z, 1.0)
     unsafe { output.write(id.xy(), color) }

@@ -35,6 +35,8 @@ use vulkanalia::vk::KhrSwapchainExtension;
 
 use shared::Bvh;
 
+use crate::{WIDTH, HEIGHT};
+
 /// Whether the validation layers should be enabled.
 const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
 /// The name of the validation layers.
@@ -201,7 +203,7 @@ impl App {
         let after_wait = std::time::Instant::now();
         self.data.images_in_flight[image_index] = in_flight_fence;
 
-        self.update_uniform_buffer(image_index)?;
+        self.update_buffers(image_index)?;
 
         let wait_semaphores = &[self.data.image_available_semaphores[self.frame]];
         let wait_stages = &[vk::PipelineStageFlags::COMPUTE_SHADER];
@@ -244,7 +246,7 @@ impl App {
         Ok(())
     }
 
-    unsafe fn update_uniform_buffer(&self, image_index: usize) -> Result<()> {
+    unsafe fn update_buffers(&self, image_index: usize) -> Result<()> {
         //UPDATE DESCRIPTORS HERE
 
         // Copy
@@ -346,7 +348,7 @@ impl App {
         let bvh_buffer_memory = self.device.map_memory(
             self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
             0,
-            INSTANCE_BUFFER_LEN as u64,
+            BVH_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
@@ -370,6 +372,7 @@ impl App {
         create_swapchain_image_views(&self.device, &mut self.data)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
         create_storage_buffers(&self.instance, &self.device, &mut self.data)?;
+        create_image_buffers(&self.instance, &self.device, &mut self.data)?;
         create_descriptor_pool(&self.device, &mut self.data)?;
         create_descriptor_sets(&self.device, &mut self.data)?;
         create_command_buffers(&self.device, &mut self.data)?;
@@ -406,8 +409,10 @@ impl App {
         self.device.free_command_buffers(self.data.command_pool, &self.data.command_buffers);
         self.data.uniform_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
         self.data.storage_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
+        self.data.image_buffers_memory.iter().for_each(|m| self.device.free_memory(*m, None));
         self.data.uniform_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
         self.data.storage_buffers.iter().for_each(|b| self.device.destroy_buffer(*b, None));
+        self.data.image_buffers.iter().for_each(|b| self.device.destroy_image(*b, None));
         self.data.framebuffers.iter().for_each(|f| self.device.destroy_framebuffer(*f, None));
         self.data.swapchain_image_views.iter().for_each(|v| self.device.destroy_image_view(*v, None));
         self.device.destroy_swapchain_khr(self.data.swapchain, None);
@@ -443,7 +448,7 @@ struct AppData {
     uniform_buffers_memory: Vec<vk::DeviceMemory>,
     storage_buffers: Vec<vk::Buffer>,
     storage_buffers_memory: Vec<vk::DeviceMemory>,
-    image_buffers: Vec<vk::Buffer>,
+    image_buffers: Vec<vk::Image>,
     image_buffers_memory: Vec<vk::DeviceMemory>,
 
     descriptor_pool: vk::DescriptorPool,
@@ -1302,31 +1307,78 @@ unsafe fn create_storage_buffers(
     Ok(())
 }
 
-// unsafe fn create_image_buffers(
-//     instance: &Instance,
-//     device: &Device,
-//     data: &mut AppData,
-// ) -> Result<()> {
-//     //UPDATE DESCRIPTORS HERE
-//     data.image_buffers.clear();
-//     data.image_buffers_memory.clear();
-//
-//     for _ in 0..data.swapchain_images.len() {
-//         let (image_buffer, image_buffer_memory) = create_buffer(
-//             instance,
-//             device,
-//             data,
-//             0,
-//             vk::BufferUsageFlags::,
-//             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-//         )?;
-//
-//         data.uniform_buffers.push(uniform_buffer);
-//         data.uniform_buffers_memory.push(uniform_buffer_memory);
-//     }
-//
-//     Ok(())
-// }
+unsafe fn create_image_buffers(
+    instance: &Instance,
+    device: &Device,
+    data: &mut AppData,
+) -> Result<()> {
+    data.image_buffers.clear();
+    data.image_buffers_memory.clear();
+
+    let image_extent = vk::Extent3D {
+        width: WIDTH as u32,
+        height: HEIGHT as u32,
+        depth: 1,
+    };
+
+    for _ in 0..data.swapchain_images.len() {
+        // Create image
+        let image_create_info = vk::ImageCreateInfo::builder()
+            .image_type(vk::ImageType::_2D)
+            .format(vk::Format::R8G8B8A8_UNORM)
+            .extent(image_extent)
+            .mip_levels(1)
+            .array_layers(1)
+            .samples(vk::SampleCountFlags::_1)
+            .tiling(vk::ImageTiling::OPTIMAL)
+            .usage(vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC)
+            .sharing_mode(vk::SharingMode::EXCLUSIVE)
+            .initial_layout(vk::ImageLayout::UNDEFINED);
+
+        let image = device.create_image(&image_create_info, None)?;
+
+        // Allocate memory
+        let mem_requirements = device.get_image_memory_requirements(image);
+        let mem_type_index = find_memory_type(
+            instance,
+            data,
+            mem_requirements.memory_type_bits,
+            vk::MemoryPropertyFlags::DEVICE_LOCAL,
+        )?;
+
+        let alloc_info = vk::MemoryAllocateInfo::builder()
+            .allocation_size(mem_requirements.size)
+            .memory_type_index(mem_type_index);
+
+        let memory = device.allocate_memory(&alloc_info, None)?;
+        device.bind_image_memory(image, memory, 0)?;
+
+        data.image_buffers.push(image);
+        data.image_buffers_memory.push(memory);
+    }
+
+    Ok(())
+}
+
+fn find_memory_type(
+    instance: &Instance,
+    data: &AppData,
+    type_filter: u32,
+    properties: vk::MemoryPropertyFlags,
+) -> Result<u32> {
+    let mem_properties = unsafe {
+        instance.get_physical_device_memory_properties(data.physical_device)
+    };
+
+    for (i, mem_type) in mem_properties.memory_types.iter().enumerate() {
+        if (type_filter & (1 << i)) != 0 && mem_type.property_flags.contains(properties) {
+            return Ok(i as u32);
+        }
+    }
+
+    Err(anyhow!("Failed to find suitable memory type."))
+}
+
 
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
