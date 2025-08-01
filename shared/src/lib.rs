@@ -75,6 +75,7 @@ pub struct CamData {
     pub frame: u32,
     pub debug_number: u32,
     pub debug_information: DebugInformation,
+    pub frames_without_move: f32,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]

@@ -30,10 +30,11 @@ pub fn main() {
         canvas_height: HEIGHT as u32,
         fov: 90.0,
         samples: 1,
-        depth: 5,
+        depth: 2,
         debug_number: 128,
         debug_information: DebugInformation::None,
         frame: 0,
+        frames_without_move: 0.0,
     };
 
     let _materials: Vec<materials::DiffuseMaterial> = vec![
@@ -44,66 +45,66 @@ pub fn main() {
 
     let (teapot_vert, mut teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"));
 
-    // let (sandal_vert, mut sandal_tris) = parse_obj_file(include_str!("./resources/sandal.obj"));
+    let (sandal_vert, mut sandal_tris) = parse_obj_file(include_str!("./resources/sandal.obj"));
 
     let (cube_vert, mut cube_tris) = parse_obj_file(include_str!("./resources/cornel_box.obj"));
 
     let teapot_bvh = create_bvh(teapot_vert.as_ref(), teapot_tris.as_mut());
-    // let mut sandal_bvh = create_bvh(sandal_vert.as_ref(), sandal_tris.as_mut());
+    let mut sandal_bvh = create_bvh(sandal_vert.as_ref(), sandal_tris.as_mut());
     let mut cube_bvh = create_bvh(cube_vert.as_ref(), cube_tris.as_mut());
 
     let teapot_tris_len = teapot_tris.len() as u32;
     let teapot_verts_len = teapot_vert.len() as u32;
     let teapot_bvh_len = teapot_bvh.len() as u32;
-    // let sandal_tris_len = sandal_tris.len() as u32;
-    // let sandal_verts_len = sandal_vert.len() as u32;
-    // let sandal_bvh_len = sandal_bvh.len() as u32;
+    let sandal_tris_len = sandal_tris.len() as u32;
+    let sandal_verts_len = sandal_vert.len() as u32;
+    let sandal_bvh_len = sandal_bvh.len() as u32;
 
-    // for triangle in sandal_tris.iter_mut() {
-    //     triangle.0 += teapot_verts_len;
-    //     triangle.1 += teapot_verts_len;
-    //     triangle.2 += teapot_verts_len;
-    // }
-
-    for triangle in cube_tris.iter_mut() {
-        triangle.0 += teapot_verts_len;//+ sandal_verts_len;
-        triangle.1 += teapot_verts_len;//+ sandal_verts_len;
-        triangle.2 += teapot_verts_len;//+ sandal_verts_len;
+    for triangle in sandal_tris.iter_mut() {
+        triangle.0 += teapot_verts_len;
+        triangle.1 += teapot_verts_len;
+        triangle.2 += teapot_verts_len;
     }
 
-    // for sandal_bvh_node in sandal_bvh.iter_mut() {
-    //     if matches!(sandal_bvh_node.mode, ChildTriangleMode::Children) {
-    //         sandal_bvh_node.child_1_or_first_tri += teapot_bvh_len;
-    //         sandal_bvh_node.child_2_or_last_tri += teapot_bvh_len;
-    //     } else {
-    //         sandal_bvh_node.child_1_or_first_tri += teapot_tris_len;
-    //         sandal_bvh_node.child_2_or_last_tri += teapot_tris_len;
-    //     }
-    // }
+    for triangle in cube_tris.iter_mut() {
+        triangle.0 += teapot_verts_len + sandal_verts_len;
+        triangle.1 += teapot_verts_len + sandal_verts_len;
+        triangle.2 += teapot_verts_len + sandal_verts_len;
+    }
+
+    for sandal_bvh_node in sandal_bvh.iter_mut() {
+        if matches!(sandal_bvh_node.mode, ChildTriangleMode::Children) {
+            sandal_bvh_node.child_1_or_first_tri += teapot_bvh_len;
+            sandal_bvh_node.child_2_or_last_tri += teapot_bvh_len;
+        } else {
+            sandal_bvh_node.child_1_or_first_tri += teapot_tris_len;
+            sandal_bvh_node.child_2_or_last_tri += teapot_tris_len;
+        }
+    }
 
     for cube_bvh_node in cube_bvh.iter_mut() {
         if matches!(cube_bvh_node.mode, ChildTriangleMode::Children) {
-            cube_bvh_node.child_1_or_first_tri += teapot_bvh_len;// + sandal_bvh_len;
-            cube_bvh_node.child_2_or_last_tri += teapot_bvh_len;// + sandal_bvh_len;
+            cube_bvh_node.child_1_or_first_tri += teapot_bvh_len + sandal_bvh_len;
+            cube_bvh_node.child_2_or_last_tri += teapot_bvh_len + sandal_bvh_len;
         } else {
-            cube_bvh_node.child_1_or_first_tri += teapot_tris_len;// + sandal_tris_len;
-            cube_bvh_node.child_2_or_last_tri += teapot_tris_len;// + sandal_tris_len;
+            cube_bvh_node.child_1_or_first_tri += teapot_tris_len + sandal_tris_len;
+            cube_bvh_node.child_2_or_last_tri += teapot_tris_len + sandal_tris_len;
         }
     }
 
     let mut final_vert = Vec::new();
     final_vert.extend(teapot_vert);
-    // final_vert.extend(sandal_vert);
+    final_vert.extend(sandal_vert);
     final_vert.extend(cube_vert);
 
     let mut final_tris = Vec::new();
     final_tris.extend(teapot_tris);
-    // final_tris.extend(sandal_tris);
+    final_tris.extend(sandal_tris);
     final_tris.extend(cube_tris);
 
     let mut final_bvh = Vec::new();
     final_bvh.extend(teapot_bvh);
-    // final_bvh.extend(sandal_bvh);
+    final_bvh.extend(sandal_bvh);
     final_bvh.extend(cube_bvh);
 
     println!(
@@ -115,7 +116,7 @@ pub fn main() {
 
     let scene_info = SceneInfo {
         sun_orientation: Vec3::new(1.0, -1.0, 1.0),
-        num_objects: 2,
+        num_objects: 3,
         num_bvh_nodes: final_bvh.len() as u32,
         num_triangles: final_tris.len() as u32,
     };
@@ -145,7 +146,7 @@ pub fn main() {
         bvh_root: teapot_bvh_len as u32,
     };
     let cube_object = Object {
-        bvh_root: teapot_bvh_len as u32,// + sandal_bvh_len as u32,
+        bvh_root: teapot_bvh_len as u32 + sandal_bvh_len as u32,
     };
 
     let teapot_instance = Instance {
@@ -165,7 +166,7 @@ pub fn main() {
 
     let instances = Box::new([
         teapot_instance,
-        // sandal_instance,
+        sandal_instance,
         cube_instance,
     ]);
     assert!(instances.len() == scene_info.num_objects as usize);
@@ -242,9 +243,9 @@ impl ApplicationHandler for WinitApp {
                     self.frame_count = 0;
                     self.start_time = std::time::Instant::now();
                 }
-                println!("frame: {}", app.cam_data.frame);
                 unsafe { app.render(window).unwrap() };
                 app.cam_data.frame += 1;
+                app.cam_data.frames_without_move += 0.1;
             }
         } else if let WindowEvent::CloseRequested = event {
             if let Some((_app, _window)) = &mut self.app {
@@ -257,6 +258,7 @@ impl ApplicationHandler for WinitApp {
             }
         } else if let WindowEvent::KeyboardInput { event, .. } = event {
             if let Some((app, window)) = &mut self.app {
+                app.cam_data.frames_without_move = -1.0;
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
                         let forward_vector = Vec3::new(0.0, 0.0, 0.2);
@@ -362,6 +364,7 @@ impl ApplicationHandler for WinitApp {
                     return;
                 }
                 app.update_mouse(delta.0 as f32, delta.1 as f32);
+                app.cam_data.frames_without_move = -1.0;
             }
         }
     }

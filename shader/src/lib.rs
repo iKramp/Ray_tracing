@@ -18,7 +18,6 @@ use modules::material::*;
 #[spirv(compute(threads(16, 16)))]
 pub fn main(
     #[spirv(global_invocation_id)] id: UVec3,
-    #[spirv(uniform_constant, descriptor_set = 0, binding = 7)] output: &image::Image!(2D, sampled=false, __crate_root=crate, format=rgba32f),
 
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
     #[spirv(uniform, descriptor_set = 0, binding = 1)] scene_info: &SceneInfo,
@@ -27,6 +26,8 @@ pub fn main(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] object_buffer: &[Object],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] instance_buffer: &[Instance],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] bvh_buffer: &[Bvh],
+
+    #[spirv(uniform_constant, descriptor_set = 0, binding = 7)] output: &image::Image!(2D, sampled=false, __crate_root=crate, format=rgba32f),
 ) {
     let objects = ObjectInfo {
         vertex_buffer,
@@ -46,8 +47,8 @@ pub fn main(
     //     + in_frag_coord.z * 255.0 * 255.0
     //     + in_frag_coord.w * 255.0 * 255.0 * 255.0;
     // let seed = seed as u32;
-    let seed = id.x + id.y;
-    // let seed = (data.frame * 13) ^ (in_frag_coord.x as u32 * 29) ^ (in_frag_coord.y as u32 * 67);
+    // let seed = id.x + id.y;
+    let seed = (data.frame * 13) ^ (id.x as u32 * 29) ^ (id.y as u32 * 67);
 
     let color = modules::trace::Ray::get_color(
         (id.x as usize, id.y as usize),
@@ -56,7 +57,15 @@ pub fn main(
         scene_info,
         &objects,
     );
+    let color = Vec4::new(color.x, color.y, color.z, 1.0);
 
-    // output[out_coord as usize] = Vec4::new(color.x, color.y, color.z, 1.0)
+    let prev_frames = data.frames_without_move.max(0.0);
+
+    let prev_color = output.read(id.xy()) * (prev_frames / (prev_frames + 1.0));
+    let new_color = color * (1.0 / (prev_frames + 1.0));
+
+    let color = prev_color + new_color;
+
+
     unsafe { output.write(id.xy(), color) }
 }

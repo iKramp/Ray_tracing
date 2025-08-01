@@ -22,6 +22,7 @@ use log::*;
 use shared::glam::{self, Affine3A, Quat, Vec3};
 use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;
+use vk::EntryV1_1;
 use vulkanalia::loader::{LibloadingLoader, LIBRARY};
 use vulkanalia::prelude::v1_0::*;
 use vulkanalia::window as vk_window;
@@ -35,7 +36,7 @@ use vulkanalia::vk::KhrSwapchainExtension;
 
 use shared::Bvh;
 
-use crate::{WIDTH, HEIGHT};
+use crate::{HEIGHT, WIDTH};
 
 /// Whether the validation layers should be enabled.
 const VALIDATION_ENABLED: bool = false; //cfg!(debug_assertions);
@@ -58,8 +59,7 @@ const MAX_FRAMES_IN_FLIGHT: usize = 2;
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
 const NUM_STORAGE_DESCRIPTORS: u32 = 5;
-const NUM_IMAGE_BUFFERS: u32 = 1;
-
+const NUM_IMAGE_DESCRIPTORS: u32 = 1;
 
 const MAX_VERTICES: usize = 10000;
 const MAX_TRIANGLES: usize = 100000;
@@ -152,6 +152,7 @@ impl App {
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
         create_storage_buffers(&instance, &device, &mut data)?;
+        create_image_buffers(&instance, &device, &mut data)?;
         create_descriptor_pool(&device, &mut data)?;
         create_descriptor_sets(&device, &mut data)?;
         create_command_buffers(&device, &mut data)?;
@@ -450,6 +451,7 @@ struct AppData {
     storage_buffers_memory: Vec<vk::DeviceMemory>,
     image_buffers: Vec<vk::Image>,
     image_buffers_memory: Vec<vk::DeviceMemory>,
+    image_views: Vec<vk::ImageView>,
 
     descriptor_pool: vk::DescriptorPool,
     descriptor_sets: Vec<vk::DescriptorSet>,
@@ -472,11 +474,14 @@ struct AppData {
 unsafe fn create_instance(window: &Window, entry: &Entry, data: &mut AppData) -> Result<Instance> {
     // Application Info
 
+    let api_version = entry.enumerate_instance_version().unwrap();
+    println!("Vulkan API Version: {}", api_version);
+
     let application_info = vk::ApplicationInfo::builder()
         .application_name(b"Vulkan Tutorial (Rust)\0")
         .application_version(vk::make_version(1, 0, 0))
         .engine_name(b"No Engine\0")
-        .engine_version(vk::make_version(1, 0, 0))
+        .engine_version(0)
         .api_version(vk::make_version(1, 0, 0));
 
     // Layers
@@ -1017,7 +1022,7 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
     let allocate_info = vk::CommandBufferAllocateInfo::builder()
         .command_pool(data.command_pool)
         .level(vk::CommandBufferLevel::PRIMARY)
-        .command_buffer_count(data.swapchain_images.len() as u32);  // Use swapchain images count
+        .command_buffer_count(data.swapchain_images.len() as u32); // Use swapchain images count
 
     data.command_buffers = device.allocate_command_buffers(&allocate_info)?;
 
@@ -1043,17 +1048,112 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             &[],
         );
 
-
-        let group_count_x = 16;
-        let group_count_y = 16;
+        let group_count_x = WIDTH.div_ceil(16) as u32;
+        let group_count_y = HEIGHT.div_ceil(16) as u32;
         let group_count_z = 1;
 
         device.cmd_dispatch(command_buffer, group_count_x, group_count_y, group_count_z);
+
+        // Transition image_buffers[i] to TRANSFER_SRC_OPTIMAL
+        insert_image_memory_barrier(
+            device,
+            command_buffer,
+            data.image_buffers[i],
+            vk::ImageLayout::GENERAL,
+            vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::AccessFlags::SHADER_WRITE,
+            vk::AccessFlags::TRANSFER_READ,
+        );
+
+        // Transition swapchain image to TRANSFER_DST_OPTIMAL
+        insert_image_memory_barrier(
+            device,
+            command_buffer,
+            data.swapchain_images[i],
+            vk::ImageLayout::PRESENT_SRC_KHR,
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::AccessFlags::empty(),
+            vk::AccessFlags::TRANSFER_WRITE,
+        );
+
+        // Copy from compute image to swapchain image
+        let image_subresource = vk::ImageSubresourceLayers::builder()
+            .aspect_mask(vk::ImageAspectFlags::COLOR)
+            .mip_level(0)
+            .base_array_layer(0)
+            .layer_count(1);
+
+        let image_copy = vk::ImageCopy::builder()
+            .src_subresource(*image_subresource)
+            .dst_subresource(*image_subresource)
+            .extent(vk::Extent3D {
+                width: WIDTH as u32,
+                height: HEIGHT as u32,
+                depth: 1,
+            });
+
+        device.cmd_copy_image(
+            command_buffer,
+            data.image_buffers[i],
+            vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            data.swapchain_images[i],
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            &[*image_copy],
+        );
+
+        // Transition swapchain image to PRESENT_SRC_KHR
+        insert_image_memory_barrier(
+            device,
+            command_buffer,
+            data.swapchain_images[i],
+            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+            vk::ImageLayout::PRESENT_SRC_KHR,
+            vk::AccessFlags::TRANSFER_WRITE,
+            vk::AccessFlags::empty(),
+        );
 
         device.end_command_buffer(command_buffer)?;
     }
 
     Ok(())
+}
+
+unsafe fn insert_image_memory_barrier(
+    device: &Device,
+    cmd: vk::CommandBuffer,
+    image: vk::Image,
+    old_layout: vk::ImageLayout,
+    new_layout: vk::ImageLayout,
+    src_access_mask: vk::AccessFlags,
+    dst_access_mask: vk::AccessFlags,
+) {
+    let barrier = vk::ImageMemoryBarrier::builder()
+        .old_layout(old_layout)
+        .new_layout(new_layout)
+        .image(image)
+        .src_access_mask(src_access_mask)
+        .dst_access_mask(dst_access_mask)
+        .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+        .subresource_range(
+            vk::ImageSubresourceRange::builder()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1)
+                .build(),
+        );
+
+    device.cmd_pipeline_barrier(
+        cmd,
+        vk::PipelineStageFlags::COMPUTE_SHADER,
+        vk::PipelineStageFlags::TRANSFER,
+        vk::DependencyFlags::empty(),
+        &[] as &[vk::MemoryBarrier],
+        &[] as &[vk::BufferMemoryBarrier],
+        &[*barrier],
+    );
 }
 
 unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> Result<()> {
@@ -1353,9 +1453,26 @@ unsafe fn create_image_buffers(
         let memory = device.allocate_memory(&alloc_info, None)?;
         device.bind_image_memory(image, memory, 0)?;
 
+        let view_info = vk::ImageViewCreateInfo::builder()
+            .image(image)
+            .view_type(vk::ImageViewType::_2D)
+            .format(vk::Format::R8G8B8A8_UNORM) // or whatever you're using
+            .subresource_range(
+                vk::ImageSubresourceRange::builder()
+                    .aspect_mask(vk::ImageAspectFlags::COLOR)
+                    .base_mip_level(0)
+                    .level_count(1)
+                    .base_array_layer(0)
+                    .layer_count(1)
+                    .build(),
+            );
+        let view = device.create_image_view(&view_info, None)?;
+
         data.image_buffers.push(image);
         data.image_buffers_memory.push(memory);
+        data.image_views.push(view);
     }
+    println!("Created {} image buffers.", data.image_buffers.len());
 
     Ok(())
 }
@@ -1366,9 +1483,8 @@ fn find_memory_type(
     type_filter: u32,
     properties: vk::MemoryPropertyFlags,
 ) -> Result<u32> {
-    let mem_properties = unsafe {
-        instance.get_physical_device_memory_properties(data.physical_device)
-    };
+    let mem_properties =
+        unsafe { instance.get_physical_device_memory_properties(data.physical_device) };
 
     for (i, mem_type) in mem_properties.memory_types.iter().enumerate() {
         if (type_filter & (1 << i)) != 0 && mem_type.property_flags.contains(properties) {
@@ -1379,7 +1495,6 @@ fn find_memory_type(
     Err(anyhow!("Failed to find suitable memory type."))
 }
 
-
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
@@ -1389,12 +1504,16 @@ unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<
         .type_(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(data.swapchain_images.len() as u32 * NUM_STORAGE_DESCRIPTORS);
 
+    let image_size = vk::DescriptorPoolSize::builder()
+        .type_(vk::DescriptorType::STORAGE_IMAGE)
+        .descriptor_count(data.swapchain_images.len() as u32 * NUM_IMAGE_DESCRIPTORS);
+
     let pool_sizes = &[ubo_size, storage_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
         .max_sets(
             data.swapchain_images.len() as u32
-                * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS),
+                * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS + NUM_IMAGE_DESCRIPTORS),
         );
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
@@ -1453,6 +1572,11 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
             .offset(0)
             .range(BVH_BUFFER_LEN as u64);
 
+        let image_info = vk::DescriptorImageInfo::builder()
+            .image_layout(vk::ImageLayout::GENERAL)
+            .image_view(data.image_views[i])
+            .sampler(vk::Sampler::null());
+
         let writes = [
             vk::WriteDescriptorSet::builder()
                 .dst_set(data.descriptor_sets[i])
@@ -1471,6 +1595,12 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
                     instance_info,
                     bvh_info,
                 ])
+                .build(),
+            vk::WriteDescriptorSet::builder()
+                .dst_set(data.descriptor_sets[i])
+                .dst_binding(7)
+                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+                .image_info(&[image_info])
                 .build(),
         ];
 

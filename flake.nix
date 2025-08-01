@@ -2,7 +2,7 @@
   description = "Rust OS Kernel Development Flake";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.11";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     rust-overlay.url = "github:oxalica/rust-overlay";
     flake-utils.url  = "github:numtide/flake-utils";
   };
@@ -27,6 +27,7 @@
         pkgs.samply
         pkgs.wayland
         pkgs.vulkan-loader
+        pkgs.vulkan-tools
         pkgs.wayland
         pkgs.wayland-protocols
         pkgs.xorg.libXcursor
