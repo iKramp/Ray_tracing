@@ -8,8 +8,7 @@ pub fn get_seed(
     frag_coord: (usize, usize),
     frame: u32,
 ) -> u32 {
-    let seed = (frame * 13) ^ (frag_coord.0 as u32 * 29) ^ (frag_coord.1 as u32 * 67);
-    seed
+    (frame * 13) ^ (frag_coord.0 as u32 * 29) ^ (frag_coord.1 as u32 * 67)
 }
 
 pub fn xor_shift(seed: u32) -> u32 {
@@ -24,7 +23,6 @@ pub fn rand_float(seed: &mut u32, range: (f32, f32)) -> f32 {
     let num = xor_shift(*seed);
     *seed = num;
     (*seed & 65535) as f32 / 65535.0 * (range.1 - range.0) + range.0
-    //return (range.0 + range.1) / 1.0;
 }
 
 pub struct ObjectInfo<'a> {

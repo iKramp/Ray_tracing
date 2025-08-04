@@ -79,7 +79,6 @@ fn create_bvh_recursive(
             child_1,
         );
     }
-    println!("finished first {} triangles", split_index + start_index as usize);
     if triangles.len() - split_index > 16 {
         create_bvh_recursive(
             vertices,

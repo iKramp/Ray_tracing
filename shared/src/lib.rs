@@ -87,7 +87,7 @@ pub enum DebugInformation {
 
 #[repr(C)]
 pub struct SceneInfo {
-    pub num_objects: u32,
+    pub num_instances: u32,
     pub num_bvh_nodes: u32,
     pub num_triangles: u32,
     pub sun_orientation: Vec3,
@@ -132,6 +132,12 @@ impl Vertex {
                 _padding: [0; 4],
             }
         }
+    }
+}
+
+impl Clone for Vertex {
+    fn clone(&self) -> Self {
+        Self::new(self.pos)
     }
 }
 

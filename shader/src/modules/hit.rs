@@ -6,33 +6,22 @@ use shared::{glam::Vec3, Bvh, Vertex};
 use spirv_std::num_traits::Float;
 
 pub struct HitRecord {
-    pub pos: Vec3,
-    pub ray: Ray,
-    pub normal_fixed: bool,
-    pub normal: Vec3, //points toward the modules
+    pub triangle_id: u32,
     pub t: f32,
-    pub front_face: bool, //is the modules and normal on the front of the face?
-    pub material_id: u32,
-    pub uv: (f32, f32),
+    pub instance_id: u32,
     #[cfg(feature = "debug")]
     pub triangle_tests: u32,
     #[cfg(feature = "debug")]
     pub box_tests: u32,
-    //pub resources: Rc<Resources>,
 }
 
 #[allow(clippy::new_without_default)]
 impl HitRecord {
     pub fn new(/*resources: Rc<Resources>*/) -> Self {
         HitRecord {
-            pos: Vec3::default(),
-            ray: Ray::new(Vec3::default(), Vec3::default()),
-            normal_fixed: true,
-            normal: Vec3::default(),
             t: f32::INFINITY,
-            front_face: true,
-            material_id: 0,
-            uv: (0.0, 0.0),
+            triangle_id: u32::MAX,
+            instance_id: 0,
             #[cfg(feature = "debug")]
             triangle_tests: 0,
             #[cfg(feature = "debug")]
@@ -43,31 +32,16 @@ impl HitRecord {
 
     pub fn try_add(
         &mut self,
-        pos: Vec3,
-        normal: Vec3,
         t: f32,
-        ray: &Ray,
-        material_id: u32,
-        //material: Box<Rc<dyn Material>>,
-        uv: (f32, f32),
+        triangle_id: u32,
+        instance_id: u32,
     ) {
         if t < self.t {
             self.t = t;
-            self.ray = *ray;
-            self.pos = pos;
-            self.front_face = ray.orientation.dot(normal) < 0.0;
-            self.normal_fixed = false;
-            self.normal = if self.front_face { normal } else { -normal };
-            self.material_id = material_id;
-            //self.material = material;
-            self.uv = uv;
+            self.triangle_id = triangle_id;
+            self.instance_id = instance_id;
         }
     }
-}
-
-pub trait HitObject {
-    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord);
-    fn calculate_normal(&self, hit: Vec3) -> Vec3;
 }
 
 pub struct Mesh<'a> {
@@ -79,27 +53,21 @@ pub struct Mesh<'a> {
 }
 
 impl Mesh<'_> {
-    fn hit_triangle(&self, i: u32, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
+    fn hit_triangle(&self, i: u32, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, triangle_id: u32, instance_id: u32) {
         let triangle = self.tris[i as usize];
         let p0 = &self.verts[triangle.0 as usize];
         let p1 = &self.verts[triangle.1 as usize];
         let p2 = &self.verts[triangle.2 as usize];
         if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
-            let a = p1.pos - p0.pos;
-            let b = p2.pos - p0.pos;
-            let normal = b.cross(a).normalize();
             record.try_add(
-                ray.pos + ray.orientation * t,
-                normal,
                 t,
-                ray,
-                self.material_id,
-                (0.0, 0.0),
+                triangle_id,
+                instance_id,
             );
         }
     }
     
-    fn hit_bvh(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
+    fn hit_bvh(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32) {
         let mut stack = [0_u32; 32];
         let mut stack_size = 1;
         stack[0] = self.bvh_root;
@@ -128,21 +96,15 @@ impl Mesh<'_> {
             let first_triangle = node.child_1_or_first_tri;
             let last_triangle = node.child_2_or_last_tri;
             for i in first_triangle..=last_triangle {
-                self.hit_triangle(i, ray, t_clamp, record);
+                self.hit_triangle(i, ray, t_clamp, record, i, instance_id);
             }
             #[cfg(feature = "debug")]
             record.triangle_tests += last_triangle - first_triangle + 1;
         }
     }
-}
 
-impl HitObject for Mesh<'_> {
-    fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord) {
-        self.hit_bvh(ray, t_clamp, record)
-    }
-
-    fn calculate_normal(&self, _hit: Vec3) -> Vec3 {
-        Vec3::default() //unused
+    pub fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32) {
+        self.hit_bvh(ray, t_clamp, record, instance_id)
     }
 }
 

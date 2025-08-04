@@ -58,31 +58,29 @@ impl Ray {
         cam_data: &CamData,
         color: &mut Vec3,
         objects: &ObjectInfo,
-    ) -> (RayReturn, HitRecord) {
+    ) -> RayReturn {
         self.normalize();
-        let mut record = HitRecord::new(/*resources.clone()*/);
-        record.ray = *self;
-        record.ray.normalize();
+        let mut record = HitRecord::new();
 
-        for i in 0..scene_info.num_objects as usize {
+        for i in 0..scene_info.num_instances as usize {
             let instance = &objects.instance_buffer[i];
             let object = &objects.object_buffer[instance.object_id as usize];
 
             let mesh = Mesh {
                 verts: objects.vertex_buffer,
-                //tris: &objects.triangle_buffer[object.first_triangle as usize..object.last_triangle as usize],
                 tris: objects.triangle_buffer,
                 bvh_buffer: objects.bvh_buffer,
                 material_id: i as u32,
                 bvh_root: object.bvh_root,
             };
-            let ray = self.transform_by_obj_matrix(instance.transform);
+            let inverse_matrix = instance.transform.inverse();
+            let ray = Ray {
+                pos: transform_by_obj_matrix(self.pos, &inverse_matrix),
+                orientation: transform_by_obj_matrix(self.orientation, &inverse_matrix),
+            };
+
             let clamp = (0.00001, record.t);
-            mesh.hit(&ray, clamp, &mut record);
-            if !record.normal_fixed {
-                record.normal_fixed = true;
-                record.normal = transform_by_obj_inverse(record.normal, instance.transform);
-            }
+            mesh.hit(&ray, clamp, &mut record, i as u32);
         }
 
         #[cfg(feature = "debug")]
@@ -97,13 +95,10 @@ impl Ray {
                 );
                 *color = color_;
             }
-            return (
-                RayReturn {
-                    state: RayReturnState::Stop,
-                    ray: Vec3::default(),
-                },
-                record,
-            );
+            return RayReturn {
+                state: RayReturnState::Stop,
+                ray: Ray::new(Vec3::default(), Vec3::default()),
+            };
         }
 
         #[cfg(feature = "debug")]
@@ -118,70 +113,85 @@ impl Ray {
                 );
                 *color = color_;
             }
-            return (
-                RayReturn {
-                    state: RayReturnState::Stop,
-                    ray: Vec3::default(),
-                },
-                record,
-            );
+            return RayReturn {
+                state: RayReturnState::Stop,
+                ray: Ray::new(Vec3::default(), Vec3::default()),
+            };
         }
 
         if record.t == f32::INFINITY {
             let sky_material = BackgroundMaterial {};
-            let stop_col = sky_material.get_stop_color(&record);
+            let stop_col = sky_material.get_stop_color(self.orientation, (0.0, 0.0), self.orientation);
             color.x *= stop_col.x;
             color.y *= stop_col.y;
             color.z *= stop_col.z;
-            return (
-                RayReturn {
-                    state: RayReturnState::Stop,
-                    ray: Vec3::default(),
-                },
-                record,
-            );
+            return RayReturn {
+                state: RayReturnState::Stop,
+                ray: Ray::new(Vec3::default(), Vec3::default()),
+            };
         }
 
-        record.ray.normalize();
-        record.normal = record.normal.normalize();
+        let instance = &objects.instance_buffer[record.instance_id as usize];
+        let transform = &instance.transform;
+        let triangle = {
+            let tmp_tri = objects.triangle_buffer[record.triangle_id as usize];
+            let mut vert_1 = objects.vertex_buffer[tmp_tri.0 as usize].clone();
+            let mut vert_2 = objects.vertex_buffer[tmp_tri.1 as usize].clone();
+            let mut vert_3 = objects.vertex_buffer[tmp_tri.2 as usize].clone();
+            vert_1.pos = transform_by_obj_matrix(vert_1.pos, transform);
+            vert_2.pos = transform_by_obj_matrix(vert_2.pos, transform);
+            vert_3.pos = transform_by_obj_matrix(vert_3.pos, transform);
+            (vert_1, vert_2, vert_3)
+        };
+        let material_id = instance.object_id as usize;
+        let mut ray = *self;
+        ray.orientation *= record.t;
+        let normal = {
+            let a = triangle.0.pos - triangle.1.pos;
+            let b = triangle.0.pos - triangle.2.pos;
+            a.cross(b).normalize()
+        };
+        let uv = (0.0, 0.0);
+
 
         const MATERIAL_2: DiffuseMaterial = DiffuseMaterial::new(Vec3::new(230.0, 230.0, 0.0));
-        const MATERIAL_0: MetalMaterial = MetalMaterial::new(Vec3::new(200.0, 200.0, 200.0), 0.5);
-        const MATERIAL_1: EmmissiveMaterial =
-            EmmissiveMaterial::new(Vec3::new(255.0, 200.0, 200.0));
+        const MATERIAL_0: MetalMaterial = MetalMaterial::new(Vec3::new(50.0, 200.0, 200.0), 0.5);
+        const MATERIAL_1: MetalMaterial = MetalMaterial::new(Vec3::new(100.0, 50.0, 200.0), 0.5);
+        // const MATERIAL_1: EmmissiveMaterial =
+        //     EmmissiveMaterial::new(Vec3::new(255.0, 200.0, 200.0));
 
-        let ray_return = if record.material_id == 1 {
-            MATERIAL_1.get_next_ray_dir(&record, seed) //record.material.get_next_ray_dir(&record/*, rng*/);
-        } else if record.material_id == 2 {
-            MATERIAL_2.get_next_ray_dir(&record, seed)
+        let ray_return = if material_id == 1 {
+            MATERIAL_1.get_next_ray_dir(seed, ray, normal)
+        } else if material_id == 2 {
+            MATERIAL_2.get_next_ray_dir(seed, ray, normal)
         } else {
-            MATERIAL_0.get_next_ray_dir(&record, seed)
+            MATERIAL_0.get_next_ray_dir(seed, ray, normal)
         };
         match ray_return.state {
             RayReturnState::Absorb => *color = Vec3::default(),
             RayReturnState::Stop => {
-                let stop_col = if record.material_id == 1 {
-                    MATERIAL_1.get_stop_color(&record)
-                } else if record.material_id == 2 {
-                    MATERIAL_2.get_stop_color(&record)
+                let stop_col = if material_id == 1 {
+                    MATERIAL_1.get_stop_color(normal, uv, ray.orientation)
+                } else if material_id == 2 {
+                    MATERIAL_2.get_stop_color(normal, uv, ray.orientation)
                 } else {
-                    MATERIAL_0.get_stop_color(&record)
+                    MATERIAL_0.get_stop_color(normal, uv, ray.orientation)
                 };
                 color.x *= stop_col.x;
                 color.y *= stop_col.y;
                 color.z *= stop_col.z;
             } //record.material.get_stop_color(&record),
             RayReturnState::Ray => {
-                if record.material_id == 1 {
-                    *color = MATERIAL_1.get_color(&record, color)
-                } else if record.material_id == 2 {
-                    *color = MATERIAL_2.get_color(&record, color)
+                if material_id == 1 {
+                    *color = MATERIAL_1.get_color(*color, normal, uv, ray.orientation);
+                } else if material_id == 2 {
+                    *color = MATERIAL_2.get_color(*color, normal, uv, ray.orientation);
                 } else {
-                    *color = MATERIAL_0.get_color(&record, color);
+                    *color = MATERIAL_0.get_color(*color, normal, uv, ray.orientation);
                 }
             }
         }
-        (ray_return, record)
+        ray_return
     }
 
     pub fn get_color(
@@ -206,7 +216,7 @@ impl Ray {
 
             for _ in 0..data.depth {
                 //depth
-                let (ray_return, record) = vec.trace_ray(
+                let ray_return = vec.trace_ray(
                     scene_info,
                     &mut rng_seed,
                     data,
@@ -215,7 +225,7 @@ impl Ray {
                 );
                 match ray_return.state {
                     RayReturnState::Ray => {
-                        vec = Ray::new(record.pos, ray_return.ray);
+                        vec = ray_return.ray;
                     }
                     _ => {
                         break;
@@ -228,16 +238,10 @@ impl Ray {
         color.x /= data.samples as f32 * 256.0;
         color.y /= data.samples as f32 * 256.0;
         color.z /= data.samples as f32 * 256.0;
-        color.x = color.x.sqrt().clamp(0.0, 0.999999999);
-        color.y = color.y.sqrt().clamp(0.0, 0.999999999);
-        color.z = color.z.sqrt().clamp(0.0, 0.999999999);
+        // color.x = color.x.sqrt().clamp(0.0, 0.999999999);
+        // color.y = color.y.sqrt().clamp(0.0, 0.999999999);
+        // color.z = color.z.sqrt().clamp(0.0, 0.999999999);
         color
-    }
-
-    fn transform_by_obj_matrix(&self, obj_matrix: glam::Affine3A) -> Self {
-        let pos = obj_matrix.transform_point3(self.pos);
-        let orientation = obj_matrix.transform_vector3(self.orientation);
-        Ray { pos, orientation }
     }
 
     pub(super) fn hits_bounding(&self, bounding_box: &BoundingBox) -> bool {
@@ -262,22 +266,8 @@ impl Ray {
         }
         false
     }
-
-    /*
-         *bool IntersectAABB( const Ray& ray, const float3 bmin, const float3 bmax )
-    {
-        float tx1 = (bmin.x - ray.O.x) / ray.D.x, tx2 = (bmax.x - ray.O.x) / ray.D.x;
-        float tmin = min( tx1, tx2 ), tmax = max( tx1, tx2 );
-        float ty1 = (bmin.y - ray.O.y) / ray.D.y, ty2 = (bmax.y - ray.O.y) / ray.D.y;
-        tmin = max( tmin, min( ty1, ty2 ) ), tmax = min( tmax, max( ty1, ty2 ) );
-        float tz1 = (bmin.z - ray.O.z) / ray.D.z, tz2 = (bmax.z - ray.O.z) / ray.D.z;
-        tmin = max( tmin, min( tz1, tz2 ) ), tmax = min( tmax, max( tz1, tz2 ) );
-        return tmax >= tmin && tmin < ray.t && tmax > 0;
-    }
-         */
 }
 
-fn transform_by_obj_inverse(vec: Vec3, obj_matrix: glam::Affine3A) -> Vec3 {
-    let inverse = obj_matrix.inverse();
-    inverse.transform_vector3(vec)
+fn transform_by_obj_matrix(vec: Vec3, obj_matrix: &glam::Affine3A) -> Vec3 {
+    obj_matrix.transform_vector3(vec)
 }

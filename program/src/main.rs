@@ -2,8 +2,6 @@ pub mod modules;
 use core::f32;
 
 use glam::{Quat, Vec3};
-use modules::bvh::create_bvh;
-use modules::parse_obj_file;
 
 use shared::materials;
 use shared::*;
@@ -13,6 +11,8 @@ use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
+
+use crate::modules::{BufferSceneInfo, SceneBuilder};
 
 const WIDTH: usize = 1280;
 const HEIGHT: usize = 720;
@@ -30,7 +30,7 @@ pub fn main() {
         canvas_height: HEIGHT as u32,
         fov: 90.0,
         samples: 1,
-        depth: 2,
+        depth: 5,
         debug_number: 128,
         debug_information: DebugInformation::None,
         frame: 0,
@@ -42,86 +42,6 @@ pub fn main() {
         materials::DiffuseMaterial::new(Vec3::new(0.0, 0.0, 255.0)),
         materials::DiffuseMaterial::new(Vec3::new(0.0, 255.0, 0.0)),
     ];
-
-    let (teapot_vert, mut teapot_tris) = parse_obj_file(include_str!("./resources/teapot.obj"));
-
-    let (sandal_vert, mut sandal_tris) = parse_obj_file(include_str!("./resources/sandal.obj"));
-
-    let (cube_vert, mut cube_tris) = parse_obj_file(include_str!("./resources/cornel_box.obj"));
-
-    let teapot_bvh = create_bvh(teapot_vert.as_ref(), teapot_tris.as_mut());
-    let mut sandal_bvh = create_bvh(sandal_vert.as_ref(), sandal_tris.as_mut());
-    let mut cube_bvh = create_bvh(cube_vert.as_ref(), cube_tris.as_mut());
-
-    let teapot_tris_len = teapot_tris.len() as u32;
-    let teapot_verts_len = teapot_vert.len() as u32;
-    let teapot_bvh_len = teapot_bvh.len() as u32;
-    let sandal_tris_len = sandal_tris.len() as u32;
-    let sandal_verts_len = sandal_vert.len() as u32;
-    let sandal_bvh_len = sandal_bvh.len() as u32;
-
-    for triangle in sandal_tris.iter_mut() {
-        triangle.0 += teapot_verts_len;
-        triangle.1 += teapot_verts_len;
-        triangle.2 += teapot_verts_len;
-    }
-
-    for triangle in cube_tris.iter_mut() {
-        triangle.0 += teapot_verts_len + sandal_verts_len;
-        triangle.1 += teapot_verts_len + sandal_verts_len;
-        triangle.2 += teapot_verts_len + sandal_verts_len;
-    }
-
-    for sandal_bvh_node in sandal_bvh.iter_mut() {
-        if matches!(sandal_bvh_node.mode, ChildTriangleMode::Children) {
-            sandal_bvh_node.child_1_or_first_tri += teapot_bvh_len;
-            sandal_bvh_node.child_2_or_last_tri += teapot_bvh_len;
-        } else {
-            sandal_bvh_node.child_1_or_first_tri += teapot_tris_len;
-            sandal_bvh_node.child_2_or_last_tri += teapot_tris_len;
-        }
-    }
-
-    for cube_bvh_node in cube_bvh.iter_mut() {
-        if matches!(cube_bvh_node.mode, ChildTriangleMode::Children) {
-            cube_bvh_node.child_1_or_first_tri += teapot_bvh_len + sandal_bvh_len;
-            cube_bvh_node.child_2_or_last_tri += teapot_bvh_len + sandal_bvh_len;
-        } else {
-            cube_bvh_node.child_1_or_first_tri += teapot_tris_len + sandal_tris_len;
-            cube_bvh_node.child_2_or_last_tri += teapot_tris_len + sandal_tris_len;
-        }
-    }
-
-    let mut final_vert = Vec::new();
-    final_vert.extend(teapot_vert);
-    final_vert.extend(sandal_vert);
-    final_vert.extend(cube_vert);
-
-    let mut final_tris = Vec::new();
-    final_tris.extend(teapot_tris);
-    final_tris.extend(sandal_tris);
-    final_tris.extend(cube_tris);
-
-    let mut final_bvh = Vec::new();
-    final_bvh.extend(teapot_bvh);
-    final_bvh.extend(sandal_bvh);
-    final_bvh.extend(cube_bvh);
-
-    println!(
-        "merged: {} vertices, {} triangles, {} BVH nodes",
-        final_vert.len(),
-        final_tris.len(),
-        final_bvh.len()
-    );
-
-    let scene_info = SceneInfo {
-        sun_orientation: Vec3::new(1.0, -1.0, 1.0),
-        num_objects: 3,
-        num_bvh_nodes: final_bvh.len() as u32,
-        num_triangles: final_tris.len() as u32,
-    };
-
-    let event_loop = EventLoop::new().unwrap();
 
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.7, 1.0),
@@ -141,35 +61,23 @@ pub fn main() {
         glam::Vec3::new(0.0, 0.0, 0.0),
     );
 
-    let teapot_object = Object { bvh_root: 0 };
-    let sandal_object = Object {
-        bvh_root: teapot_bvh_len as u32,
-    };
-    let cube_object = Object {
-        bvh_root: teapot_bvh_len as u32 + sandal_bvh_len as u32,
-    };
+    let (scene_info, buffers) = 
+        SceneBuilder::new()
+            .add_obj_file(include_str!("./resources/sandal.obj"), &[transform_matrix_2])
+            .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
+            // .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
+            .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
+            .build();
 
-    let teapot_instance = Instance {
-        transform: transform_matrix.inverse(),
-        object_id: 0,
-    };
+    println!(
+        "merged: {} vertices, {} triangles, {} BVH nodes",
+        buffers.vertices.len(),
+        buffers.triangles.len(),
+        buffers.bvh.len()
+    );
 
-    let sandal_instance = Instance {
-        transform: transform_matrix_2.inverse(),
-        object_id: 1,
-    };
+    let event_loop = EventLoop::new().unwrap();
 
-    let cube_instance = Instance {
-        transform: transform_matrix_3.inverse(),
-        object_id: 2,
-    };
-
-    let instances = Box::new([
-        teapot_instance,
-        sandal_instance,
-        cube_instance,
-    ]);
-    assert!(instances.len() == scene_info.num_objects as usize);
 
     let mut winit_app = WinitApp {
         locked: false,
@@ -178,11 +86,7 @@ pub fn main() {
         app: None,
         cam_data: Some(cam_data),
         scene_info: Some(scene_info),
-        vertex_buffer: Some(final_vert.into_boxed_slice()),
-        triangle_buffer: Some(final_tris.into_boxed_slice()),
-        object_buffer: Some(Box::new([teapot_object, sandal_object, cube_object])),
-        instance_buffer: Some(instances),
-        bvh_buffer: Some(final_bvh.into_boxed_slice()),
+        buffers: Some(buffers),
     };
 
     let _res = event_loop.run_app(&mut winit_app);
@@ -195,11 +99,7 @@ struct WinitApp {
     app: Option<(modules::vulkan::App, winit::window::Window)>,
     cam_data: Option<CamData>,
     scene_info: Option<SceneInfo>,
-    vertex_buffer: Option<Box<[Vertex]>>,
-    triangle_buffer: Option<Box<[(u32, u32, u32)]>>,
-    object_buffer: Option<Box<[Object]>>,
-    instance_buffer: Option<Box<[Instance]>>,
-    bvh_buffer: Option<Box<[Bvh]>>,
+    buffers: Option<BufferSceneInfo>,
 }
 
 impl ApplicationHandler for WinitApp {
@@ -210,19 +110,17 @@ impl ApplicationHandler for WinitApp {
                 .with_inner_size(LogicalSize::new(WIDTH as u32, HEIGHT as u32))
                 .with_title("Ray Tracer (Vulkan)");
             let window = event_loop.create_window(window_attributes).unwrap();
-            let app = unsafe {
+            let mut app = unsafe {
                 modules::vulkan::App::create(
                     &window,
                     self.cam_data.take().unwrap(),
                     self.scene_info.take().unwrap(),
-                    self.vertex_buffer.take().unwrap(),
-                    self.triangle_buffer.take().unwrap(),
-                    self.object_buffer.take().unwrap(),
-                    self.instance_buffer.take().unwrap(),
-                    self.bvh_buffer.take().unwrap(),
+                    self.buffers.take().unwrap(),
                 )
                 .unwrap()
             };
+            let images = app.get_num_images_in_flight();
+            app.cam_data.frames_without_move = -(images as f32);
             self.app = Some((app, window));
         }
     }
@@ -245,7 +143,7 @@ impl ApplicationHandler for WinitApp {
                 }
                 unsafe { app.render(window).unwrap() };
                 app.cam_data.frame += 1;
-                app.cam_data.frames_without_move += 0.1;
+                app.cam_data.frames_without_move += 1.0;
             }
         } else if let WindowEvent::CloseRequested = event {
             if let Some((_app, _window)) = &mut self.app {
@@ -258,7 +156,8 @@ impl ApplicationHandler for WinitApp {
             }
         } else if let WindowEvent::KeyboardInput { event, .. } = event {
             if let Some((app, window)) = &mut self.app {
-                app.cam_data.frames_without_move = -1.0;
+                let images = app.get_num_images_in_flight();
+                app.cam_data.frames_without_move = -(images as f32);
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
                         let forward_vector = Vec3::new(0.0, 0.0, 0.2);
@@ -364,7 +263,8 @@ impl ApplicationHandler for WinitApp {
                     return;
                 }
                 app.update_mouse(delta.0 as f32, delta.1 as f32);
-                app.cam_data.frames_without_move = -1.0;
+                let images = app.get_num_images_in_flight();
+                app.cam_data.frames_without_move = -(images as f32);
             }
         }
     }

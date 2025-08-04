@@ -19,7 +19,7 @@ use std::vec;
 
 use anyhow::{anyhow, Result};
 use log::*;
-use shared::glam::{self, Affine3A, Quat, Vec3};
+use shared::glam::{self, Affine3A, Quat, Vec3, Vec4};
 use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;
 use vk::EntryV1_1;
@@ -36,6 +36,7 @@ use vulkanalia::vk::KhrSwapchainExtension;
 
 use shared::Bvh;
 
+use crate::modules::BufferSceneInfo;
 use crate::{HEIGHT, WIDTH};
 
 /// Whether the validation layers should be enabled.
@@ -54,11 +55,11 @@ const PORTABILITY_MACOS_VERSION: Version = Version::new(1, 3, 216);
 
 const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
 
-const MAX_FRAMES_IN_FLIGHT: usize = 2;
+const MAX_FRAMES_IN_FLIGHT: usize = 1;
 
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
-const NUM_STORAGE_DESCRIPTORS: u32 = 5;
+const NUM_STORAGE_DESCRIPTORS: u32 = 6;
 const NUM_IMAGE_DESCRIPTORS: u32 = 1;
 
 const MAX_VERTICES: usize = 10000;
@@ -83,14 +84,14 @@ pub(crate) struct App {
     orientation: (f32, f32),
     pub cam_data: CamData,
     scene_info: SceneInfo,
-    vertex_buffer: Box<[Vertex]>,
-    triangle_buffer: Box<[(u32, u32, u32)]>,
-    object_buffer: Box<[Object]>,
-    instance_buffer: Box<[ObjInstance]>,
-    bvh_buffer: Box<[Bvh]>,
+    buffers: BufferSceneInfo,
 }
 
 impl App {
+    pub fn get_num_images_in_flight(&self) -> u32 {
+        self.data.images_in_flight.len() as u32
+    }
+
     pub fn update_mouse(&mut self, mouse_x: f32, mouse_y: f32) {
         let (scale, rotation, translation) =
             self.cam_data.transform.to_scale_rotation_translation();
@@ -124,17 +125,13 @@ impl App {
         window: &Window,
         cam_data: CamData,
         scene_info: SceneInfo,
-        vertex_buffer: Box<[Vertex]>,
-        triangle_buffer: Box<[(u32, u32, u32)]>,
-        object_buffer: Box<[Object]>,
-        instance_buffer: Box<[ObjInstance]>,
-        bvh_buffer: Box<[Bvh]>,
+        buffers: BufferSceneInfo,
     ) -> Result<Self> {
-        assert!(vertex_buffer.len() <= MAX_VERTICES);
-        assert!(triangle_buffer.len() <= MAX_TRIANGLES);
-        assert!(object_buffer.len() <= MAX_OBJECTS);
-        assert!(instance_buffer.len() <= MAX_INSTANCES);
-        assert!(bvh_buffer.len() <= MAX_BVH_NODES);
+        assert!(buffers.vertices.len() <= MAX_VERTICES);
+        assert!(buffers.triangles.len() <= MAX_TRIANGLES);
+        assert!(buffers.objects.len() <= MAX_OBJECTS);
+        assert!(buffers.instances.len() <= MAX_INSTANCES);
+        assert!(buffers.bvh.len() <= MAX_BVH_NODES);
 
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
@@ -166,11 +163,7 @@ impl App {
             frame: 0,
             cam_data,
             scene_info,
-            vertex_buffer,
-            triangle_buffer,
-            object_buffer,
-            instance_buffer,
-            bvh_buffer,
+            buffers,
         })
     }
 
@@ -178,9 +171,7 @@ impl App {
     pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
-        let start_render = std::time::Instant::now();
-        self.device
-            .wait_for_fences(&[in_flight_fence], true, u64::MAX)?;
+        self.device.wait_for_fences(&self.data.in_flight_fences, true, u64::MAX)?;
 
         let result = self.device.acquire_next_image_khr(
             self.data.swapchain,
@@ -239,9 +230,6 @@ impl App {
             return Err(anyhow!(e));
         }
 
-        self.frame = (self.frame + 1) % MAX_FRAMES_IN_FLIGHT;
-        let after_render = std::time::Instant::now();
-
         window.request_redraw();
 
         Ok(())
@@ -253,112 +241,112 @@ impl App {
         // Copy
 
         let cam_data_memory = self.device.map_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize],
+            self.data.uniform_buffers_memory[0],
             0,
             std::mem::size_of::<CamData>() as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.cam_data, cam_data_memory.cast(), 1);
         self.device.unmap_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize],
+            self.data.uniform_buffers_memory[0],
         );
 
         //---------------
 
         let scene_info_memory = self.device.map_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
+            self.data.uniform_buffers_memory[1],
             0,
             std::mem::size_of::<SceneInfo>() as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.scene_info, scene_info_memory.cast(), 1);
         self.device.unmap_memory(
-            self.data.uniform_buffers_memory[image_index * NUM_UNIFORM_DESCRIPTORS as usize + 1],
+            self.data.uniform_buffers_memory[1],
         );
 
         //----------------STORAGE DESCRIPTORS----------------
 
         let vertex_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
+            self.data.storage_buffers_memory[0],
             0,
             VERTEX_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
-            self.vertex_buffer.as_ptr(),
+            self.buffers.vertices.as_ptr(),
             vertex_buffer_memory.cast(),
-            self.vertex_buffer.len(),
+            self.buffers.vertices.len(),
         );
         self.device.unmap_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize],
+            self.data.storage_buffers_memory[0],
         );
 
         //---------------
 
         let triangle_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
+            self.data.storage_buffers_memory[1],
             0,
             TRIANGLE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
-            self.triangle_buffer.as_ptr(),
+            self.buffers.triangles.as_ptr(),
             triangle_buffer_memory.cast(),
-            self.triangle_buffer.len(),
+            self.buffers.triangles.len(),
         );
         self.device.unmap_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 1],
+            self.data.storage_buffers_memory[1],
         );
 
         //---------------
 
         let object_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
+            self.data.storage_buffers_memory[2],
             0,
             OBJECT_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
-            self.object_buffer.as_ptr(),
+            self.buffers.objects.as_ptr(),
             object_buffer_memory.cast(),
-            self.object_buffer.len(),
+            self.buffers.objects.len(),
         );
         self.device.unmap_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 2],
+            self.data.storage_buffers_memory[2],
         );
 
         //---------------
 
         let instance_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
+            self.data.storage_buffers_memory[3],
             0,
             INSTANCE_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
-            self.instance_buffer.as_ptr(),
+            self.buffers.instances.as_ptr(),
             instance_buffer_memory.cast(),
-            self.instance_buffer.len(),
+            self.buffers.instances.len(),
         );
         self.device.unmap_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 3],
+            self.data.storage_buffers_memory[3],
         );
 
         //---------------
 
         let bvh_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
+            self.data.storage_buffers_memory[4],
             0,
             BVH_BUFFER_LEN as u64,
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(
-            self.bvh_buffer.as_ptr(),
+            self.buffers.bvh.as_ptr(),
             bvh_buffer_memory.cast(),
-            self.bvh_buffer.len(),
+            self.buffers.bvh.len(),
         );
         self.device.unmap_memory(
-            self.data.storage_buffers_memory[image_index * NUM_STORAGE_DESCRIPTORS as usize + 4],
+            self.data.storage_buffers_memory[4],
         );
 
         Ok(())
@@ -812,7 +800,7 @@ fn get_swapchain_present_mode(present_modes: &[vk::PresentModeKHR]) -> vk::Prese
 }
 
 fn get_swapchain_extent(window: &Window, capabilities: vk::SurfaceCapabilitiesKHR) -> vk::Extent2D {
-    if capabilities.current_extent.width != u32::max_value() {
+    if capabilities.current_extent.width != u32::MAX {
         capabilities.current_extent
     } else {
         let size = window.inner_size();
@@ -1044,7 +1032,7 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             vk::PipelineBindPoint::COMPUTE,
             data.pipeline_layout,
             0,
-            &[data.descriptor_sets[i]],
+            &[data.descriptor_sets[0]],
             &[],
         );
 
@@ -1058,7 +1046,7 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
         insert_image_memory_barrier(
             device,
             command_buffer,
-            data.image_buffers[i],
+            data.image_buffers[0],
             vk::ImageLayout::GENERAL,
             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
             vk::AccessFlags::SHADER_WRITE,
@@ -1094,7 +1082,7 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
 
         device.cmd_copy_image(
             command_buffer,
-            data.image_buffers[i],
+            data.image_buffers[0],
             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
             data.swapchain_images[i],
             vk::ImageLayout::TRANSFER_DST_OPTIMAL,
@@ -1162,49 +1150,55 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .binding(0)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let ubo_binding_2 = vk::DescriptorSetLayoutBinding::builder()
         .binding(1)
         .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let storage_buffer_binding_1 = vk::DescriptorSetLayoutBinding::builder()
         .binding(2)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let storage_buffer_binding_2 = vk::DescriptorSetLayoutBinding::builder()
         .binding(3)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let storage_buffer_binding_3 = vk::DescriptorSetLayoutBinding::builder()
         .binding(4)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let storage_buffer_binding_4 = vk::DescriptorSetLayoutBinding::builder()
         .binding(5)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let storage_buffer_binding_5 = vk::DescriptorSetLayoutBinding::builder()
         .binding(6)
         .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
-    let image_buffer_binding_1 = vk::DescriptorSetLayoutBinding::builder()
+    let storage_buffer_binding_6 = vk::DescriptorSetLayoutBinding::builder()
         .binding(7)
+        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+        .descriptor_count(1)
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
+
+    let image_buffer_binding_2 = vk::DescriptorSetLayoutBinding::builder()
+        .binding(8)
         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
         .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::FRAGMENT);
+        .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
     let bindings = &[
         ubo_binding_1,
@@ -1214,7 +1208,8 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         storage_buffer_binding_3,
         storage_buffer_binding_4,
         storage_buffer_binding_5,
-        image_buffer_binding_1,
+        storage_buffer_binding_6,
+        image_buffer_binding_2,
     ];
     let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
 
@@ -1304,31 +1299,29 @@ unsafe fn create_uniform_buffers(
     data.uniform_buffers.clear();
     data.uniform_buffers_memory.clear();
 
-    for _ in 0..data.swapchain_images.len() {
-        let (uniform_buffer, uniform_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            std::mem::size_of::<CamData>() as u64,
-            vk::BufferUsageFlags::UNIFORM_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (uniform_buffer, uniform_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        std::mem::size_of::<CamData>() as u64,
+        vk::BufferUsageFlags::UNIFORM_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.uniform_buffers.push(uniform_buffer);
-        data.uniform_buffers_memory.push(uniform_buffer_memory);
+    data.uniform_buffers.push(uniform_buffer);
+    data.uniform_buffers_memory.push(uniform_buffer_memory);
 
-        let (uniform_buffer, uniform_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            std::mem::size_of::<SceneInfo>() as u64,
-            vk::BufferUsageFlags::UNIFORM_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (uniform_buffer, uniform_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        std::mem::size_of::<SceneInfo>() as u64,
+        vk::BufferUsageFlags::UNIFORM_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.uniform_buffers.push(uniform_buffer);
-        data.uniform_buffers_memory.push(uniform_buffer_memory);
-    }
+    data.uniform_buffers.push(uniform_buffer);
+    data.uniform_buffers_memory.push(uniform_buffer_memory);
 
     Ok(())
 }
@@ -1342,67 +1335,77 @@ unsafe fn create_storage_buffers(
     data.storage_buffers.clear();
     data.storage_buffers_memory.clear();
 
-    for i in 0..data.swapchain_images.len() {
-        let (storage_buffer, storage_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            VERTEX_BUFFER_LEN as u64,
-            vk::BufferUsageFlags::STORAGE_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        VERTEX_BUFFER_LEN as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.storage_buffers.push(storage_buffer);
-        data.storage_buffers_memory.push(storage_buffer_memory);
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
 
-        let (storage_buffer, storage_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            TRIANGLE_BUFFER_LEN as u64,
-            vk::BufferUsageFlags::STORAGE_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        TRIANGLE_BUFFER_LEN as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.storage_buffers.push(storage_buffer);
-        data.storage_buffers_memory.push(storage_buffer_memory);
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
 
-        let (storage_buffer, storage_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            OBJECT_BUFFER_LEN as u64,
-            vk::BufferUsageFlags::STORAGE_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        OBJECT_BUFFER_LEN as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.storage_buffers.push(storage_buffer);
-        data.storage_buffers_memory.push(storage_buffer_memory);
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
 
-        let (storage_buffer, storage_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            INSTANCE_BUFFER_LEN as u64,
-            vk::BufferUsageFlags::STORAGE_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        INSTANCE_BUFFER_LEN as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.storage_buffers.push(storage_buffer);
-        data.storage_buffers_memory.push(storage_buffer_memory);
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
 
-        let (storage_buffer, storage_buffer_memory) = create_buffer(
-            instance,
-            device,
-            data,
-            BVH_BUFFER_LEN as u64,
-            vk::BufferUsageFlags::STORAGE_BUFFER,
-            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-        )?;
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        BVH_BUFFER_LEN as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
 
-        data.storage_buffers.push(storage_buffer);
-        data.storage_buffers_memory.push(storage_buffer_memory);
-    }
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
+
+    let (storage_buffer, storage_buffer_memory) = create_buffer(
+        instance,
+        device,
+        data,
+        (WIDTH * HEIGHT * std::mem::size_of::<Vec4>()) as u64,
+        vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+    )?;
+
+    data.storage_buffers.push(storage_buffer);
+    data.storage_buffers_memory.push(storage_buffer_memory);
 
     Ok(())
 }
@@ -1421,57 +1424,55 @@ unsafe fn create_image_buffers(
         depth: 1,
     };
 
-    for _ in 0..data.swapchain_images.len() {
-        // Create image
-        let image_create_info = vk::ImageCreateInfo::builder()
-            .image_type(vk::ImageType::_2D)
-            .format(vk::Format::R8G8B8A8_UNORM)
-            .extent(image_extent)
-            .mip_levels(1)
-            .array_layers(1)
-            .samples(vk::SampleCountFlags::_1)
-            .tiling(vk::ImageTiling::OPTIMAL)
-            .usage(vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC)
-            .sharing_mode(vk::SharingMode::EXCLUSIVE)
-            .initial_layout(vk::ImageLayout::UNDEFINED);
+    let image_create_info = vk::ImageCreateInfo::builder()
+        .image_type(vk::ImageType::_2D)
+        .format(vk::Format::R32G32B32_SFLOAT)
+        .extent(image_extent)
+        .mip_levels(1)
+        .array_layers(1)
+        .samples(vk::SampleCountFlags::_1)
+        .tiling(vk::ImageTiling::OPTIMAL)
+        .usage(vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC)
+        .sharing_mode(vk::SharingMode::EXCLUSIVE)
+        .initial_layout(vk::ImageLayout::UNDEFINED);
 
-        let image = device.create_image(&image_create_info, None)?;
+    let image = device.create_image(&image_create_info, None)?;
 
-        // Allocate memory
-        let mem_requirements = device.get_image_memory_requirements(image);
-        let mem_type_index = find_memory_type(
-            instance,
-            data,
-            mem_requirements.memory_type_bits,
-            vk::MemoryPropertyFlags::DEVICE_LOCAL,
-        )?;
+    // Allocate memory
+    let mem_requirements = device.get_image_memory_requirements(image);
+    let mem_type_index = find_memory_type(
+        instance,
+        data,
+        mem_requirements.memory_type_bits,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    )?;
 
-        let alloc_info = vk::MemoryAllocateInfo::builder()
-            .allocation_size(mem_requirements.size)
-            .memory_type_index(mem_type_index);
+    let alloc_info = vk::MemoryAllocateInfo::builder()
+        .allocation_size(mem_requirements.size)
+        .memory_type_index(mem_type_index);
 
-        let memory = device.allocate_memory(&alloc_info, None)?;
-        device.bind_image_memory(image, memory, 0)?;
+    let memory = device.allocate_memory(&alloc_info, None)?;
+    device.bind_image_memory(image, memory, 0)?;
 
-        let view_info = vk::ImageViewCreateInfo::builder()
-            .image(image)
-            .view_type(vk::ImageViewType::_2D)
-            .format(vk::Format::R8G8B8A8_UNORM) // or whatever you're using
-            .subresource_range(
-                vk::ImageSubresourceRange::builder()
-                    .aspect_mask(vk::ImageAspectFlags::COLOR)
-                    .base_mip_level(0)
-                    .level_count(1)
-                    .base_array_layer(0)
-                    .layer_count(1)
-                    .build(),
-            );
-        let view = device.create_image_view(&view_info, None)?;
+    let view_info = vk::ImageViewCreateInfo::builder()
+        .image(image)
+        .view_type(vk::ImageViewType::_2D)
+        .format(vk::Format::R8G8B8A8_UNORM) // or whatever you're using
+        .subresource_range(
+            vk::ImageSubresourceRange::builder()
+                .aspect_mask(vk::ImageAspectFlags::COLOR)
+                .base_mip_level(0)
+                .level_count(1)
+                .base_array_layer(0)
+                .layer_count(1)
+                .build(),
+        );
+    let view = device.create_image_view(&view_info, None)?;
 
-        data.image_buffers.push(image);
-        data.image_buffers_memory.push(memory);
-        data.image_views.push(view);
-    }
+    data.image_buffers.push(image);
+    data.image_buffers_memory.push(memory);
+    data.image_views.push(view);
+
     println!("Created {} image buffers.", data.image_buffers.len());
 
     Ok(())
@@ -1498,23 +1499,20 @@ fn find_memory_type(
 unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
-        .descriptor_count(data.swapchain_images.len() as u32 * NUM_UNIFORM_DESCRIPTORS);
+        .descriptor_count(NUM_UNIFORM_DESCRIPTORS);
 
     let storage_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(data.swapchain_images.len() as u32 * NUM_STORAGE_DESCRIPTORS);
+        .descriptor_count(NUM_STORAGE_DESCRIPTORS);
 
     let image_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::STORAGE_IMAGE)
-        .descriptor_count(data.swapchain_images.len() as u32 * NUM_IMAGE_DESCRIPTORS);
+        .descriptor_count(NUM_IMAGE_DESCRIPTORS);
 
     let pool_sizes = &[ubo_size, storage_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
-        .max_sets(
-            data.swapchain_images.len() as u32
-                * (NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS + NUM_IMAGE_DESCRIPTORS),
-        );
+        .max_sets(NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS + NUM_IMAGE_DESCRIPTORS);
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
 
@@ -1525,7 +1523,7 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
     //UPDATE DESCRIPTORS HERE
     // Allocate
 
-    let layouts = vec![data.descriptor_set_layout; data.swapchain_images.len()];
+    let layouts = vec![data.descriptor_set_layout; 1];
     let info = vk::DescriptorSetAllocateInfo::builder()
         .descriptor_pool(data.descriptor_pool)
         .set_layouts(&layouts);
@@ -1534,79 +1532,84 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
 
     // Update
 
-    for i in 0..data.swapchain_images.len() {
-        //----------UNIFORM BUFFERS----------
-        let cam_data_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.uniform_buffers[i * NUM_UNIFORM_DESCRIPTORS as usize])
-            .offset(0)
-            .range(std::mem::size_of::<CamData>() as u64);
+    //----------UNIFORM BUFFERS----------
+    let cam_data_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.uniform_buffers[0])
+        .offset(0)
+        .range(std::mem::size_of::<CamData>() as u64);
 
-        let scene_info_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.uniform_buffers[i * NUM_UNIFORM_DESCRIPTORS as usize + 1])
-            .offset(0)
-            .range(std::mem::size_of::<SceneInfo>() as u64);
+    let scene_info_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.uniform_buffers[1])
+        .offset(0)
+        .range(std::mem::size_of::<SceneInfo>() as u64);
 
-        //----------STORAGE BUFFERS----------
-        let vertex_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize])
-            .offset(0)
-            .range(VERTEX_BUFFER_LEN as u64);
+    //----------STORAGE BUFFERS----------
+    let vertex_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[0])
+        .offset(0)
+        .range(VERTEX_BUFFER_LEN as u64);
 
-        let triangle_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 1])
-            .offset(0)
-            .range(TRIANGLE_BUFFER_LEN as u64);
+    let triangle_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[1])
+        .offset(0)
+        .range(TRIANGLE_BUFFER_LEN as u64);
 
-        let object_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 2])
-            .offset(0)
-            .range(OBJECT_BUFFER_LEN as u64);
+    let object_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[2])
+        .offset(0)
+        .range(OBJECT_BUFFER_LEN as u64);
 
-        let instance_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 3])
-            .offset(0)
-            .range(INSTANCE_BUFFER_LEN as u64);
+    let instance_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[3])
+        .offset(0)
+        .range(INSTANCE_BUFFER_LEN as u64);
 
-        let bvh_info = vk::DescriptorBufferInfo::builder()
-            .buffer(data.storage_buffers[i * NUM_STORAGE_DESCRIPTORS as usize + 4])
-            .offset(0)
-            .range(BVH_BUFFER_LEN as u64);
+    let bvh_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[4])
+        .offset(0)
+        .range(BVH_BUFFER_LEN as u64);
 
-        let image_info = vk::DescriptorImageInfo::builder()
-            .image_layout(vk::ImageLayout::GENERAL)
-            .image_view(data.image_views[i])
-            .sampler(vk::Sampler::null());
+    let acc_buffer_info = vk::DescriptorBufferInfo::builder()
+        .buffer(data.storage_buffers[5])
+        .offset(0)
+        .range((WIDTH * HEIGHT * std::mem::size_of::<Vec4>()) as u64);
 
-        let writes = [
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(0)
-                .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
-                .buffer_info(&[cam_data_info, scene_info_info])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(2)
-                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-                .buffer_info(&[
-                    vertex_info,
-                    triangle_info,
-                    object_info,
-                    instance_info,
-                    bvh_info,
-                ])
-                .build(),
-            vk::WriteDescriptorSet::builder()
-                .dst_set(data.descriptor_sets[i])
-                .dst_binding(7)
-                .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-                .image_info(&[image_info])
-                .build(),
-        ];
+    //----------IMAGE BUFFERS----------
+    let res_image_info = vk::DescriptorImageInfo::builder()
+        .image_layout(vk::ImageLayout::GENERAL)
+        .image_view(data.image_views[0])
+        .sampler(vk::Sampler::null());
 
-        //----------UPDATE DESCRIPTORS----------
-        device.update_descriptor_sets(&writes, &[] as &[vk::CopyDescriptorSet]);
-    }
+    let writes = [
+        vk::WriteDescriptorSet::builder()
+            .dst_set(data.descriptor_sets[0])
+            .dst_binding(0)
+            .descriptor_type(vk::DescriptorType::UNIFORM_BUFFER)
+            .buffer_info(&[cam_data_info, scene_info_info])
+            .build(),
+        vk::WriteDescriptorSet::builder()
+            .dst_set(data.descriptor_sets[0])
+            .dst_binding(2)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(&[
+                vertex_info,
+                triangle_info,
+                object_info,
+                instance_info,
+                bvh_info,
+                acc_buffer_info,
+            ])
+            .build(),
+        vk::WriteDescriptorSet::builder()
+            .dst_set(data.descriptor_sets[0])
+            .dst_binding(8)
+            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+            .image_info(&[res_image_info])
+            .build(),
+    ];
+
+    //----------UPDATE DESCRIPTORS----------
+    device.update_descriptor_sets(&writes, &[] as &[vk::CopyDescriptorSet]);
 
     Ok(())
 }
