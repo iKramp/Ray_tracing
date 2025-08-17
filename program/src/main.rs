@@ -3,7 +3,6 @@ use core::f32;
 
 use glam::{Quat, Vec3};
 
-use shared::materials;
 use shared::*;
 use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
@@ -24,29 +23,22 @@ pub fn main() {
         transform: glam::Affine3A::from_scale_rotation_translation(
             Vec3::ONE,
             Quat::IDENTITY,
-            Vec3::new(0.0, 0.0, -15.0),
+            Vec3::new(0.0, 0.0, -20.0),
         ),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        samples: 1,
-        depth: 5,
+        depth: 20,
         debug_number: 128,
         debug_information: DebugInformation::None,
         frame: 0,
         frames_without_move: 0.0,
     };
 
-    let _materials: Vec<materials::DiffuseMaterial> = vec![
-        materials::DiffuseMaterial::new(Vec3::new(255.0, 0.0, 0.0)),
-        materials::DiffuseMaterial::new(Vec3::new(0.0, 0.0, 255.0)),
-        materials::DiffuseMaterial::new(Vec3::new(0.0, 255.0, 0.0)),
-    ];
-
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(1.0, 1.7, 1.0),
+        glam::Vec3::new(0.6, 1.01, 0.6),
         glam::Quat::from_rotation_x(f32::consts::PI),
-        glam::Vec3::new(-2.0, 2.0, 0.0),
+        glam::Vec3::new(-2.0, -5.0, 0.0),
     );
     let transform_matrix_2 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(1.0, 1.0, 1.0),
@@ -54,9 +46,8 @@ pub fn main() {
             * glam::Quat::from_rotation_y(f32::consts::PI / 5.0 * 3.0),
         glam::Vec3::new(2.0, 2.0, 5.0),
     );
-
     let transform_matrix_3 = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(20.0, 20.0, 20.0),
+        glam::Vec3::new(10.0, 10.0, 10.0),
         glam::Quat::IDENTITY,
         glam::Vec3::new(0.0, 0.0, 0.0),
     );
@@ -64,8 +55,8 @@ pub fn main() {
     let (scene_info, buffers) = 
         SceneBuilder::new()
             .add_obj_file(include_str!("./resources/sandal.obj"), &[transform_matrix_2])
+            .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
             .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
-            // .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
             .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
             .build();
 
@@ -119,8 +110,7 @@ impl ApplicationHandler for WinitApp {
                 )
                 .unwrap()
             };
-            let images = app.get_num_images_in_flight();
-            app.cam_data.frames_without_move = -(images as f32);
+            app.cam_data.frames_without_move = 0.0;
             self.app = Some((app, window));
         }
     }
@@ -156,8 +146,7 @@ impl ApplicationHandler for WinitApp {
             }
         } else if let WindowEvent::KeyboardInput { event, .. } = event {
             if let Some((app, window)) = &mut self.app {
-                let images = app.get_num_images_in_flight();
-                app.cam_data.frames_without_move = -(images as f32);
+                app.cam_data.frames_without_move = 0.0;
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
                         let forward_vector = Vec3::new(0.0, 0.0, 0.2);

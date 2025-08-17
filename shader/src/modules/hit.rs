@@ -26,7 +26,6 @@ impl HitRecord {
             triangle_tests: 0,
             #[cfg(feature = "debug")]
             box_tests: 0,
-            //resources,
         }
     }
 
@@ -53,12 +52,23 @@ pub struct Mesh<'a> {
 }
 
 impl Mesh<'_> {
-    fn hit_triangle(&self, i: u32, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, triangle_id: u32, instance_id: u32) {
+    fn hit_triangle(
+        &self,
+        i: u32,
+        ray: &Ray,
+        t_clamp: (f32, f32),
+        record: &mut HitRecord,
+        triangle_id: u32,
+        instance_id: u32,
+        backface_cull: bool,
+    ) {
         let triangle = self.tris[i as usize];
         let p0 = &self.verts[triangle.0 as usize];
         let p1 = &self.verts[triangle.1 as usize];
         let p2 = &self.verts[triangle.2 as usize];
-        if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp) {
+
+        if let Some(t) = triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp, backface_cull) {
+
             record.try_add(
                 t,
                 triangle_id,
@@ -66,8 +76,8 @@ impl Mesh<'_> {
             );
         }
     }
-    
-    fn hit_bvh(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32) {
+
+    fn hit_bvh(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32, backface_cull: bool) {
         let mut stack = [0_u32; 32];
         let mut stack_size = 1;
         stack[0] = self.bvh_root;
@@ -82,7 +92,6 @@ impl Mesh<'_> {
                 continue;
             }
 
-
             if matches!(node.mode, shared::ChildTriangleMode::Children) {
                 stack[stack_size - 1] = node.child_1_or_first_tri;
                 stack[stack_size] = node.child_2_or_last_tri;
@@ -92,19 +101,18 @@ impl Mesh<'_> {
 
             stack_size -= 1;
 
-
             let first_triangle = node.child_1_or_first_tri;
             let last_triangle = node.child_2_or_last_tri;
             for i in first_triangle..=last_triangle {
-                self.hit_triangle(i, ray, t_clamp, record, i, instance_id);
+                self.hit_triangle(i, ray, t_clamp, record, i, instance_id, backface_cull);
             }
             #[cfg(feature = "debug")]
             record.triangle_tests += last_triangle - first_triangle + 1;
         }
     }
 
-    pub fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32) {
-        self.hit_bvh(ray, t_clamp, record, instance_id)
+    pub fn hit(&self, ray: &Ray, t_clamp: (f32, f32), record: &mut HitRecord, instance_id: u32, backface_cull: bool) {
+        self.hit_bvh(ray, t_clamp, record, instance_id, backface_cull)
     }
 }
 
@@ -114,14 +122,21 @@ fn triangle_ray_intersect(
     p2: Vec3,
     ray: &Ray,
     t_clamp: (f32, f32),
+    backface_cull: bool,
 ) -> Option<f32> {
     let a = p1 - p0;
     let b = p2 - p0;
-    let normal = &mut a.cross(b);
+    let normal = &mut a.cross(b).normalize();
     let d = -(normal.dot(p0));
-    if normal.dot(ray.orientation).abs() < f32::EPSILON {
+    let dot_prod = normal.dot(ray.orientation);
+
+    if dot_prod.abs() < f32::EPSILON {
         return None;
     }
+    if backface_cull && dot_prod > 0.0 {
+        return None;
+    }
+    
     let t = -(normal.dot(ray.pos) + d) / normal.dot(ray.orientation);
     if t < t_clamp.0 || t > t_clamp.1 {
         return None;
@@ -151,4 +166,3 @@ fn triangle_ray_intersect(
     }
     Some(t)
 }
-

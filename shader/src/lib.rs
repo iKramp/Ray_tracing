@@ -18,6 +18,8 @@ use modules::material::*;
 #[cfg(target_arch = "spirv")]
 use spirv_std::num_traits::Float;
 
+use crate::modules::get_seed;
+
 #[spirv(compute(threads(16, 16)))]
 pub fn main(
     #[spirv(global_invocation_id)] id: UVec3,
@@ -52,13 +54,11 @@ pub fn main(
         return;
     }
 
-    // let seed: f32 = in_frag_coord.x
-    //     + in_frag_coord.y * 255.0
-    //     + in_frag_coord.z * 255.0 * 255.0
-    //     + in_frag_coord.w * 255.0 * 255.0 * 255.0;
-    // let seed = seed as u32;
-    // let seed = id.x + id.y;
-    let seed = (data.frame * 13) ^ (id.x * 29) ^ (id.y * 67);
+    let coord_index = id.x + id.y * data.canvas_width;
+    let prev_color = acc_buffer[coord_index as usize];
+
+    let seed = get_seed(data.frame, id.x, id.y, prev_color.x, prev_color.y, prev_color.z);
+    
 
     let rendered_color_3 = modules::trace::Ray::get_color(
         (id.x as usize, id.y as usize),
@@ -67,21 +67,30 @@ pub fn main(
         scene_info,
         &objects,
     );
+
+    let nan = rendered_color_3.x > 10.0 || 
+        rendered_color_3.y > 10.0 ||
+        rendered_color_3.z > 10.0;
+
     let rendered_color = Vec4::new(
         rendered_color_3.x,
         rendered_color_3.y,
         rendered_color_3.z,
         1.0,
     );
-    let coord_index = id.x + id.y * data.canvas_width;
+
+
     let new_color;
 
     if data.frames_without_move < 0.5 {
         acc_buffer[coord_index as usize] = rendered_color;
         new_color = rendered_color;
     } else {
-        let prev_color = acc_buffer[coord_index as usize];
-        let acc_color = prev_color + rendered_color;
+        let acc_color = if nan {
+            Vec4::new(0.0, 1000000.0, 0.0, 1.0)
+        } else {
+            prev_color + rendered_color
+        };
 
         acc_buffer[coord_index as usize] = acc_color;
 

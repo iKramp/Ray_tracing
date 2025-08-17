@@ -1,3 +1,4 @@
+use core::f32;
 use core::f32::consts::PI;
 
 use crate::modules::trace::Ray;
@@ -17,15 +18,7 @@ pub enum RayReturnState {
 
 pub struct RayReturn {
     pub state: RayReturnState,
-    pub ray: Ray,
-}
-
-fn mult_colors(lhs: Vec3, rhs: Vec3) -> Vec3 {
-    Vec3::new(
-        lhs.x * rhs.x / 255.0,
-        lhs.y * rhs.y / 255.0,
-        lhs.z * rhs.z / 255.0,
-    )
+    pub direction: Vec3,
 }
 
 fn rand_vec_in_unit_sphere(seed: &mut u32) -> Vec3 {
@@ -40,17 +33,16 @@ fn rand_vec_in_unit_sphere(seed: &mut u32) -> Vec3 {
     Vec3::new(x, y, z)
 }
 
-fn diffuse_ray_direction(seed: &mut u32, normal: Vec3) -> Vec3 {
-    let mut rand_vec = rand_vec_in_unit_sphere(seed);
-    if rand_vec.dot(normal) < 0.0 {
-        rand_vec = -rand_vec;
-    }
+fn diffuse_ray_direction(seed: &mut u32, normal: Vec3, _in_ray: Vec3) -> Vec3 {
+    let rand_vec = rand_vec_in_unit_sphere(seed);
+    let res = rand_vec + normal;
 
-    Vec3::new(
-        normal.x + rand_vec.x,
-        normal.y + rand_vec.y,
-        normal.z + rand_vec.z,
-    )
+    if res.length_squared() < f32::EPSILON {
+        //if the random vector is too close to zero, just return the normal
+        normal
+    } else {
+        res.normalize()
+    }
 }
 
 pub trait Material {
@@ -69,13 +61,24 @@ pub trait Material {
     fn get_stop_color(&self, _normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
         Vec3::new(0.0, 0.0, 0.0)
     }
+    fn backface_culling(&self) -> bool {
+        true
+    }
 }
 
-use shared::materials::DiffuseMaterial;
+pub struct DiffuseMaterial {
+    pub color: Vec3,
+}
+
+impl DiffuseMaterial {
+    pub const fn new(color: Vec3) -> Self {
+        DiffuseMaterial { color }
+    }
+}
 
 impl Material for DiffuseMaterial {
     fn get_color(&self, next_ray_color: Vec3, _normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
-        mult_colors(next_ray_color, self.color)
+        next_ray_color * self.color
     }
 
     fn get_next_ray_dir(
@@ -84,14 +87,11 @@ impl Material for DiffuseMaterial {
         ray: Ray,
         normal: Vec3,
     ) -> RayReturn {
-        let direction = diffuse_ray_direction(seed, normal);
-        let pos = ray.pos + ray.orientation;
+        let direction = diffuse_ray_direction(seed, normal, ray.orientation);
+
         RayReturn {
             state: RayReturnState::Ray,
-            ray: Ray {
-                pos,
-                orientation: direction,
-            },
+            direction,
         }
     }
 }
@@ -109,7 +109,7 @@ impl MetalMaterial {
 
 impl Material for MetalMaterial {
     fn get_color(&self, next_ray_color: Vec3, _normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
-        mult_colors(next_ray_color, self.color)
+        next_ray_color * self.color
     }
 
     fn get_next_ray_dir(
@@ -119,48 +119,46 @@ impl Material for MetalMaterial {
         normal: Vec3,
     ) -> RayReturn {
         let old_ray = ray.orientation;
-        let pos = ray.pos + ray.orientation;
         let mut new_ray = old_ray.reflect(normal).normalize();
-        let mut rand_vec = rand_vec_in_unit_sphere(seed);
-        if rand_vec.dot(normal) < 0.0 {
-            rand_vec = -rand_vec;
-        }
+        let rand_vec = diffuse_ray_direction(seed, normal, old_ray).normalize();
         new_ray = new_ray.lerp(rand_vec, self.roughness);
+
         RayReturn {
             state: RayReturnState::Ray,
-            ray: Ray {
-                pos,
-                orientation: new_ray,
-            },
+            direction: new_ray,
         }
     }
 }
 
 pub struct NormalMaterial {}
 
+impl NormalMaterial {
+    fn get_color(&self, normal: Vec3) -> Vec3 {
+        Vec3::new(
+            (normal.x + 1.0) / 2.0,
+            (normal.y + 1.0) / 2.0,
+            (normal.z + 1.0) / 2.0,
+        )
+    }
+}
+
 impl Material for NormalMaterial {
     fn get_next_ray_dir(
         &self,
-        _seed: &mut u32,
-        _ray: Ray,
-        _normal: Vec3,
+        seed: &mut u32,
+        ray: Ray,
+        normal: Vec3,
     ) -> RayReturn {
         RayReturn {
-            state: RayReturnState::Stop,
-            ray: Ray {
-                pos: Vec3::default(),
-                orientation: Vec3::default(),
-            },
+            state: RayReturnState::Ray,
+            direction: diffuse_ray_direction(seed, normal, ray.orientation),
         }
     }
 
-    fn get_stop_color(&self, normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
-        Vec3::new(
-            (normal.x + 1.0) * 255.0 / 2.0,
-            (normal.y + 1.0) * 255.0 / 2.0,
-            (normal.z + 1.0) * 255.0 / 2.0,
-        )
+    fn get_color(&self, next_ray_color: Vec3, normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
+        next_ray_color * self.get_color(normal)
     }
+
 }
 
 pub struct BackgroundMaterial {}
@@ -174,17 +172,15 @@ impl Material for BackgroundMaterial {
     ) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
-            ray: Ray {
-                pos: Vec3::default(),
-                orientation: Vec3::default(),
-            },
+            direction: Vec3::default(),
         }
     }
 
     fn get_stop_color(&self, _normal: Vec3, _uv: (f32, f32), ray_dir: Vec3) -> Vec3 {
         let temp = ray_dir.normalize();
-        let factor = (temp.y + 0.5).clamp(0.0, 0.0);
-        Vec3::new(255.0, 255.0, 255.0) * (1.0 - factor) + Vec3::new(127.5, 178.5, 255.0) * factor
+
+        let factor = (temp.y + 0.5).clamp(0.0, 1.0);
+        Vec3::new(1.0, 1.0, 1.0) * (1.0 - factor) + Vec3::new(0.5, 0.7, 1.0) * factor
     }
 }
 
@@ -207,16 +203,17 @@ impl Material for EmmissiveMaterial {
     ) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
-            ray: Ray {
-                pos: Vec3::default(),
-                orientation: Vec3::default(),
-            },
+            direction: Vec3::default(),
         }
     }
 
     fn get_stop_color(&self, normal: Vec3, _uv: (f32, f32), ray_dir: Vec3) -> Vec3 {
         let ray_reversed = -ray_dir.normalize();
-        self.light_color * ray_reversed.dot(normal).sqrt()
+
+        let dot_product = ray_reversed.dot(normal).abs(); //abs for weird geometries that have haps
+                                                          //into backface triangles
+
+        self.light_color * dot_product.sqrt()
     }
 }
 
@@ -257,7 +254,7 @@ impl RefractiveMaterial {
 
 impl Material for RefractiveMaterial {
     fn get_color(&self, next_ray_color: Vec3, _normal: Vec3, _uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
-        mult_colors(next_ray_color, self.color)
+        next_ray_color * self.color
     }
 
     fn get_next_ray_dir(
@@ -267,7 +264,6 @@ impl Material for RefractiveMaterial {
         normal: Vec3,
     ) -> RayReturn {
         let front_face = ray.orientation.dot(normal) < 0.0;
-        let pos = ray.pos + ray.orientation;
 
         let refraction_ratio = if front_face { 1.0 / self.ior } else { self.ior };
         let cos_theta = normal.dot(-ray.orientation);
@@ -276,38 +272,31 @@ impl Material for RefractiveMaterial {
         if refraction_ratio * sin_theta > 1.0 || reflectance > rand_float(seed, (0.0, 1.0)) {
             RayReturn {
                 state: RayReturnState::Ray,
-                ray: Ray {
-                    pos,
-                    orientation: self.reflect(normal, ray),
-                },
+                direction: self.reflect(normal, ray),
             }
         } else {
             RayReturn {
                 state: RayReturnState::Ray,
-                ray: Ray {
-                    pos,
-                    orientation: self.refract(normal, ray),
-                },
+                direction: self.refract(normal, ray),
             }
         }
     }
 }
 
 pub struct UVMaterial {
-    _color: Vec3,
 }
 
 impl UVMaterial {
-    pub fn new(_color: Vec3) -> Self {
-        Self { _color }
+    pub fn new() -> Self {
+        Self { }
     }
 }
 
 impl Material for UVMaterial {
     fn get_stop_color(&self, _normal: Vec3, uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
         Vec3::new(
-            (uv.0 * 255.0) as f32,
-            (uv.1 * 255.0) as f32,
+            uv.0,
+            uv.1,
             0.0,
         )
     }
@@ -320,10 +309,7 @@ impl Material for UVMaterial {
     ) -> RayReturn {
         RayReturn {
             state: RayReturnState::Stop,
-            ray: Ray {
-                pos: Vec3::default(),
-                orientation: Vec3::default(),
-            },
+            direction: Vec3::default(),
         }
     }
 }

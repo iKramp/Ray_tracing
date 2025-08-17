@@ -1,8 +1,8 @@
 //! Ported to Rust from <https://github.com/Tw1ddle/Sky-Shader/blob/master/src/shaders/glsl/sky.fragment>
+#![allow(unexpected_cfgs)]
 
 #![cfg_attr(target_arch = "spirv", no_std, feature(lang_items))]
 
-pub mod materials;
 
 use core::f32::consts::PI;
 use glam::{vec3, Vec3};
@@ -66,7 +66,6 @@ pub fn smoothstep(edge0: f32, edge1: f32, x: f32) -> f32 {
 #[derive(Copy, Clone, PartialEq)]
 #[repr(C)]
 pub struct CamData {
-    pub samples: u32,
     pub depth: u32,
     pub transform: glam::Affine3A,
     pub canvas_width: u32,
