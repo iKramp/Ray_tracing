@@ -1,4 +1,8 @@
+use std::ops::Div;
+
 use shared::{glam::Vec3, BoundingBox, Bvh, ChildTriangleMode, Vertex};
+
+const MAX_DEPTH: u8 = 32;
 
 pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec<Bvh> {
     let mut bvh_nodes = Vec::new();
@@ -10,18 +14,15 @@ pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec
         mode: ChildTriangleMode::Triangles,
     });
 
+    if triangles.len() > 5 {
+        create_bvh_recursive(vertices, 0, triangles, &mut bvh_nodes, 0, 1);
+    }
+
     println!(
         "BVH: {} triangles, {} nodes",
         triangles.len(),
         bvh_nodes.len()
     );
-
-    if triangles.len() > 5 {
-        create_bvh_recursive(vertices, 0, triangles, &mut bvh_nodes, 0);
-    }
-
-    //we allow max 16 depth per object due to gpu stack constraints
-    assert!(bvh_nodes.len() <= 2_usize.pow(16));
 
     bvh_nodes
 }
@@ -32,9 +33,10 @@ fn create_bvh_recursive(
     triangles: &mut [(u32, u32, u32)],
     bvh_nodes: &mut Vec<Bvh>,
     parent_node_index: u32,
+    depth: u8,
 ) {
 
-    let (split_axis, split_index) = find_ideal_split(triangles, vertices);
+    let (split_axis, split_index) = find_ideal_split(triangles, vertices, triangles.len() / 4);
 
     //sort triangles
     sort_by_axis(triangles, vertices, split_axis as usize);
@@ -70,31 +72,29 @@ fn create_bvh_recursive(
     //     create_bvh_recursive(vertices, start_index, &mut triangles[..split_index], bvh_nodes, child_1);
     //     create_bvh_recursive(vertices, start_index + split_index as u32, &mut triangles[split_index..], bvh_nodes, child_2);
     // }
-    if split_index > 16 {
+    if split_index > 16 && depth < MAX_DEPTH {
         create_bvh_recursive(
             vertices,
             start_index,
             &mut triangles[..split_index],
             bvh_nodes,
             child_1,
+            depth + 1,
         );
     }
-    if triangles.len() - split_index > 16 {
+    if triangles.len() - split_index > 16 && depth < MAX_DEPTH {
         create_bvh_recursive(
             vertices,
             start_index + split_index as u32,
             &mut triangles[split_index..],
             bvh_nodes,
             child_2,
+            depth + 1,
         );
     }
 }
 
-fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex]) -> (u32, usize) {
-    // assert!(triangles.len() >= 4);
-    // let splits = usize::min(100, triangles.len() / 2);
-    // let splits = (triangles.len() - 1) / 16;
-    let splits = 1;
+fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex], splits: usize) -> (u32, usize) {
     let mut best_result = f32::MAX;
     let mut best_axis = 0;
     let mut best_split = 0;
@@ -106,7 +106,7 @@ fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex]) -> (
             let split_index = ((i as f32 + 1.0) * chunk_size).round() as usize;
             let first_box = find_bounding_box(&triangles[..split_index], vertices);
             let second_box = find_bounding_box(&triangles[split_index..], vertices);
-            let split_cost = box_srface_area(&first_box) + box_srface_area(&second_box);
+            let split_cost = box_srface_area(&first_box) * split_index as f32 + box_srface_area(&second_box) * (triangles.len() as f32 - split_index as f32);
 
             if split_cost < best_result {
                 best_result = split_cost;
@@ -120,9 +120,9 @@ fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex]) -> (
 }
 
 fn box_srface_area(bounding_box: &BoundingBox) -> f32 {
-    let size_x = bounding_box.max.x - bounding_box.min.x;
-    let size_y = bounding_box.max.y - bounding_box.min.y;
-    let size_z = bounding_box.max.z - bounding_box.min.z;
+    let size_x = (bounding_box.max.x - bounding_box.min.x).abs();
+    let size_y = (bounding_box.max.y - bounding_box.min.y).abs();
+    let size_z = (bounding_box.max.z - bounding_box.min.z).abs();
     2.0 * (size_x * size_y + size_x * size_z + size_y * size_z)
 }
 

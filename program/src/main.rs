@@ -13,8 +13,8 @@ use winit::window::Window;
 
 use crate::modules::{BufferSceneInfo, SceneBuilder};
 
-const WIDTH: usize = 1280;
-const HEIGHT: usize = 720;
+const WIDTH: usize = 640 * 2;
+const HEIGHT: usize = 360 * 2;
 
 pub fn main() {
     pretty_env_logger::init();
@@ -28,7 +28,7 @@ pub fn main() {
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
         fov: 90.0,
-        depth: 20,
+        depth: 10,
         debug_number: 128,
         debug_information: DebugInformation::None,
         frame: 0,
@@ -36,15 +36,19 @@ pub fn main() {
     };
 
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(0.6, 1.01, 0.6),
+        glam::Vec3::new(0.6 * 2.0, 1.01 * 2.0, 0.6 * 2.0),
         glam::Quat::from_rotation_x(f32::consts::PI),
-        glam::Vec3::new(-2.0, -5.0, 0.0),
+        glam::Vec3::new(0.0, -9.8, 0.0),
     );
-    let transform_matrix_2 = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(1.0, 1.0, 1.0),
-        glam::Quat::from_rotation_x(f32::consts::PI / 3.0 * 4.0)
-            * glam::Quat::from_rotation_y(f32::consts::PI / 5.0 * 3.0),
-        glam::Vec3::new(2.0, 2.0, 5.0),
+    let transform_matrix_default_cube = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(5.0, 5.0, 5.0),
+        glam::Quat::from_rotation_y(f32::consts::PI / 4.0),
+        glam::Vec3::new(0.0, 1.9, 0.0),
+    );
+    let transform_matrix_dragon = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(20.0, 20.0, 20.0),
+        glam::Quat::from_rotation_x(f32::consts::PI),
+        glam::Vec3::new(2.0, 2.0, 0.0),
     );
     let transform_matrix_3 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(10.0, 10.0, 10.0),
@@ -54,7 +58,8 @@ pub fn main() {
 
     let (scene_info, buffers) = 
         SceneBuilder::new()
-            .add_obj_file(include_str!("./resources/sandal.obj"), &[transform_matrix_2])
+            // .add_obj_file(include_str!("./resources/dragon_8k.obj"), &[transform_matrix_dragon])
+            .add_obj_file(include_str!("./resources/default_cube.obj"), &[transform_matrix_default_cube])
             .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
             .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
             .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
@@ -123,6 +128,13 @@ impl ApplicationHandler for WinitApp {
     ) {
         if let WindowEvent::RedrawRequested = event {
             if let Some((app, window)) = &mut self.app {
+                static mut PREV_CAMERA_TRANSFORM: glam::Affine3A = glam::Affine3A::IDENTITY;
+                let current_camera_transform = app.cam_data.transform;
+                if current_camera_transform != unsafe { PREV_CAMERA_TRANSFORM } {
+                    app.cam_data.frames_without_move = 0.0;
+                    unsafe { PREV_CAMERA_TRANSFORM = current_camera_transform };
+                }
+
                 self.frame_count += 1;
                 let elapsed = self.start_time.elapsed().as_secs_f32();
                 if elapsed > 1.0 {
@@ -146,7 +158,6 @@ impl ApplicationHandler for WinitApp {
             }
         } else if let WindowEvent::KeyboardInput { event, .. } = event {
             if let Some((app, window)) = &mut self.app {
-                app.cam_data.frames_without_move = 0.0;
                 match event.physical_key {
                     PhysicalKey::Code(KeyCode::KeyW) => {
                         let forward_vector = Vec3::new(0.0, 0.0, 0.2);
@@ -180,11 +191,14 @@ impl ApplicationHandler for WinitApp {
                         let forward_vector = rotation * forward_vector;
                         app.update_pos(forward_vector);
                     }
-                    PhysicalKey::Code(KeyCode::Space) => {
+                    PhysicalKey::Code(KeyCode::KeyR) => {
+                        app.cam_data.frames_without_move = 0.0;
+                    }
+                    PhysicalKey::Code(KeyCode::KeyQ) => {
                         let forward_vector = Vec3::new(0.0, -0.2, 0.0);
                         app.update_pos(forward_vector);
                     }
-                    PhysicalKey::Code(KeyCode::ShiftLeft) => {
+                    PhysicalKey::Code(KeyCode::KeyE) => {
                         let forward_vector = Vec3::new(0.0, 0.2, 0.0);
                         app.update_pos(forward_vector);
                     }
@@ -204,6 +218,7 @@ impl ApplicationHandler for WinitApp {
                         }
                     }
                     PhysicalKey::Code(KeyCode::Enter) => {
+                        app.cam_data.frames_without_move = 0.0;
                         if event.state == winit::event::ElementState::Released {
                             return;
                         }
@@ -220,6 +235,7 @@ impl ApplicationHandler for WinitApp {
                         );
                     }
                     PhysicalKey::Code(KeyCode::NumpadAdd) => {
+                        app.cam_data.frames_without_move = 0.0;
                         if event.state == winit::event::ElementState::Released {
                             return;
                         }
@@ -227,6 +243,7 @@ impl ApplicationHandler for WinitApp {
                         println!("debug_number: {}", app.cam_data.debug_number);
                     }
                     PhysicalKey::Code(KeyCode::NumpadSubtract) => {
+                        app.cam_data.frames_without_move = 0.0;
                         if event.state == winit::event::ElementState::Released {
                             return;
                         }
@@ -252,8 +269,6 @@ impl ApplicationHandler for WinitApp {
                     return;
                 }
                 app.update_mouse(delta.0 as f32, delta.1 as f32);
-                let images = app.get_num_images_in_flight();
-                app.cam_data.frames_without_move = -(images as f32);
             }
         }
     }

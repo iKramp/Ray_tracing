@@ -151,6 +151,12 @@ pub struct BoundingBox {
     pub padding_2: [u8; 4],
 }
 
+impl BoundingBox {
+    pub fn center(&self) -> Vec3 {
+        (self.min + self.max) * 0.5
+    }
+}
+
 pub struct Object {
     pub bvh_root: u32,
 }

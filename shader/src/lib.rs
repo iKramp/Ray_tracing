@@ -68,9 +68,9 @@ pub fn main(
         &objects,
     );
 
-    let nan = rendered_color_3.x > 10.0 || 
-        rendered_color_3.y > 10.0 ||
-        rendered_color_3.z > 10.0;
+    let nan = rendered_color_3.x > 1000.0 || 
+        rendered_color_3.y > 1000.0 ||
+        rendered_color_3.z > 1000.0;
 
     let rendered_color = Vec4::new(
         rendered_color_3.x,

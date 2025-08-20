@@ -11,17 +11,26 @@ use core::f32::consts::PI;
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 
-const MATERIAL_0: MetalMaterial = MetalMaterial::new(Vec3::new(0.8, 0.8, 0.8), 0.15);
-// const MATERIAL_1: DiffuseMaterial = DiffuseMaterial::new(Vec3::new(1.0, 1.0, 1.0));
+// const MATERIAL_0: RefractiveMaterial = RefractiveMaterial::new(Vec3::new(0.9, 0.9, 0.9), 1.33);
+const MATERIAL_0: GenericMaterial = GenericMaterial {
+    color: Vec3::new(1.0, 1.0, 1.0),
+    specular: 0.0,
+    specular_roughness: 0.0,
+    roughness: 0.0,
+    ior: 1.5,
+};
 const MATERIAL_1: NormalMaterial = NormalMaterial {};
-const MATERIAL_2: EmmissiveMaterial = EmmissiveMaterial::new(Vec3::new(10.0, 10.0, 10.0));
+const MATERIAL_2: EmmissiveMaterial = EmmissiveMaterial::new(Vec3::new(15.0, 15.0, 15.0));
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
     //fov is counted in degrees in the horizontal direction
     let fov = (data.fov * PI / 180.0) / 2.0;
     let edge_dist = fov.tan();
-    let pix_x_dist = ((pix_x / data.canvas_width as f32) * 2.0 - 1.0) * edge_dist;
-    let pix_y_dist = ((pix_y / data.canvas_height as f32) * 2.0 - 1.0) * edge_dist;
+    let pix_x_frac = (pix_x / data.canvas_width as f32) * 2.0 - 1.0;
+    let pix_y_frac = (pix_y / data.canvas_height as f32) * 2.0 - 1.0;
+    let pix_y_frac_adjusted = pix_y_frac * (data.canvas_height as f32 / data.canvas_width as f32);
+    let pix_x_dist = pix_x_frac * edge_dist;
+    let pix_y_dist = pix_y_frac_adjusted * edge_dist;
     let orientation_vec = Vec3::new(pix_x_dist, pix_y_dist, 1.0);
     let orientation_vec = data.transform.transform_vector3(orientation_vec);
     Ray::new(
@@ -81,7 +90,7 @@ impl Ray {
                 orientation: inverse_matrix.transform_vector3(self.orientation),
             };
 
-            let clamp = (0.00001, record.t);
+            let clamp = (f32::EPSILON, record.t);
             mesh.hit(&ray, clamp, &mut record, i as u32, get_backface_culling(i as u32));
         }
 
@@ -139,8 +148,7 @@ impl Ray {
             (vert_1, vert_2, vert_3)
         };
         let material_id = record.instance_id as usize;
-        let mut ray = *self;
-        ray.orientation *= record.t;
+        let ray = *self;
 
         let normal = {
             let a = triangle.0.pos - triangle.1.pos;
@@ -150,44 +158,18 @@ impl Ray {
 
         let uv = (0.0, 0.0);
 
-        let ray_return = if material_id == 1 {
-            MATERIAL_1.get_next_ray_dir(seed, ray, normal)
-        } else if material_id == 2 {
-            MATERIAL_2.get_next_ray_dir(seed, ray, normal)
+        let mat_return = if material_id == 0 {
+            MATERIAL_0.bxdf(*color, ray, normal, uv, record.t, seed)
+        } else if material_id == 1 {
+            MATERIAL_1.bxdf(*color, ray, normal, uv, record.t, seed)
         } else {
-            MATERIAL_0.get_next_ray_dir(seed, ray, normal)
+            MATERIAL_2.bxdf(*color, ray, normal, uv, record.t, seed)
         };
 
-        match ray_return.state {
-            RayReturnState::Absorb => *color = Vec3::default(),
-            RayReturnState::Stop => {
-                let stop_col = if material_id == 1 {
-                    MATERIAL_1.get_stop_color(normal, uv, ray.orientation)
-                } else if material_id == 2 {
-                    MATERIAL_2.get_stop_color(normal, uv, ray.orientation)
-                } else {
-                    MATERIAL_0.get_stop_color(normal, uv, ray.orientation)
-                };
+        *self = mat_return.new_ray;
+        *color = mat_return.next_color;
 
-                color.x *= stop_col.x;
-                color.y *= stop_col.y;
-                color.z *= stop_col.z;
-            }
-            RayReturnState::Ray => {
-                if material_id == 1 {
-                    *color = MATERIAL_1.get_color(*color, normal, uv, ray.orientation);
-                } else if material_id == 2 {
-                    *color = MATERIAL_2.get_color(*color, normal, uv, ray.orientation);
-                } else {
-                    *color = MATERIAL_0.get_color(*color, normal, uv, ray.orientation);
-                }
-            }
-        }
-
-        self.pos += self.orientation * record.t;
-        self.orientation = ray_return.direction.normalize();
-
-        ray_return.state
+        mat_return.ray_return_state
     }
 
     pub fn get_color(
@@ -223,7 +205,7 @@ impl Ray {
         Vec3::default()
     }
 
-    pub(super) fn hits_bounding(&self, bounding_box: &BoundingBox) -> bool {
+    pub(super) fn hits_bounding(&self, bounding_box: &BoundingBox) -> f32 {
         let mut t_min = (bounding_box.min - self.pos) / self.orientation;
         let mut t_max = (bounding_box.max - self.pos) / self.orientation;
 
@@ -240,10 +222,10 @@ impl Ray {
         let t_near = f32::max(t_min.x, f32::max(t_min.y, t_min.z));
         let t_far = f32::min(t_max.x, f32::min(t_max.y, t_max.z));
 
-        if t_near < f32::INFINITY && t_near < t_far {
-            return true;
+        if t_near < f32::INFINITY && t_near < t_far && t_far > 0.0 {
+            return t_near;
         }
-        false
+        f32::INFINITY
     }
 }
 

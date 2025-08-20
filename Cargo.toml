@@ -15,5 +15,5 @@ codegen-units = 16
 opt-level = 3
 
 [workspace.dependencies]
-spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu.git", rev = "21f46d985637a99b1d2dbfd9b5b5e3c05284a5b2" }
-spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu.git", rev = "21f46d985637a99b1d2dbfd9b5b5e3c05284a5b2" }
+spirv-std = { git = "https://github.com/Rust-GPU/rust-gpu.git", rev = "b320baf49b392b194e14f15bf06ad528c7ae656c" }
+spirv-builder = { git = "https://github.com/Rust-GPU/rust-gpu.git", rev = "b320baf49b392b194e14f15bf06ad528c7ae656c" }

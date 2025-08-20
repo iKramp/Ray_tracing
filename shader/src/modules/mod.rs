@@ -56,6 +56,11 @@ pub fn is_nan(value: f32) -> bool {
     nan || inf
 }
 
+pub fn is_inf(value: f32) -> bool {
+    let value = value.to_bits();
+    value == 0x7F800000 || value == 0xFF800000 // +inf or -inf
+}
+
 pub fn is_vec_3_nan(vec: &spirv_std::glam::Vec3) -> bool {
     is_nan(vec.x) || is_nan(vec.y) || is_nan(vec.z)
 }

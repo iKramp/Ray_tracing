@@ -10,10 +10,12 @@
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }: 
   let
     system = "x86_64-linux";
-    overlays = [ (import rust-overlay) ];
+    overlays = [ 
+      (import rust-overlay)
+    ];
     pkgs = import nixpkgs { inherit system overlays; };
 
-    rust = pkgs.rust-bin.nightly."2024-11-22".default.override {
+    rust = pkgs.rust-bin.nightly."2025-06-23".default.override {
       targets = [ "x86_64-unknown-none" ];
       extensions = [ "rust-src" "rustc-dev" "llvm-tools-preview" ];
     };
@@ -22,6 +24,7 @@
     devShells.${system}.default = pkgs.mkShell rec {
       nativeBuildInputs = [
         pkgs.pkg-config
+        pkgs.gcc13
       ];
       buildInputs = [
         pkgs.samply
