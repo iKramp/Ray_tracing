@@ -1,7 +1,14 @@
 pub mod vulkan;
 pub mod bvh;
+pub mod buffers;
+pub mod point_recorder;
 use glam::Vec3;
+use nalgebra_glm::Vec4;
 use shared::{glam::Affine3A, *};
+use buffers::*;
+pub use point_recorder::record_points;
+
+use crate::{modules::buffers::BufferHolder, HEIGHT, WIDTH};
 
 pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
     let mut vertices: Vec<Vertex> = Vec::new();
@@ -36,29 +43,30 @@ pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<(u32, u32, u32)>) {
 }
 
 pub struct SceneBuilder {
-    vertices: Vec<Vertex>,
-    tris: Vec<(u32, u32, u32)>,
-    bvh: Vec<Bvh>,
-    instance: Vec<Instance>,
-    objects: Vec<Object>,
     sun_orientation: Vec3,
+    buffers: BufferHolder,
 }
 
 impl SceneBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
-        SceneBuilder {
-            vertices: Vec::new(),
-            tris: Vec::new(),
-            bvh: Vec::new(),
-            instance: Vec::new(),
-            objects: Vec::new(),
+        let mut builder = SceneBuilder {
+            buffers: BufferHolder::new(),
             sun_orientation: Vec3::new(1.0, -1.0, 1.0),
-        }
+        };
+
+        builder.buffers.insert("acc_image", vec![Vec4::zeros(); WIDTH * HEIGHT]);
+        builder.buffers.insert(VERT_BUFFER, Vec::<Vertex>::new());
+        builder.buffers.insert(TRI_BUFFER, Vec::<(u32, u32, u32)>::new());
+        builder.buffers.insert(BVH_BUFFER, Vec::<Bvh>::new());
+        builder.buffers.insert(OBJ_BUFFER, Vec::<Object>::new());
+        builder.buffers.insert(INSTANCE_BUFFER, Vec::<Instance>::new());
+        builder.buffers.insert(DEBUG_POINTS_BUFFER, vec![Vec3::ZERO; 2]);
+        builder
     }
 
     pub fn add_obj_file(mut self, file: &str, instance_matrices: &[Affine3A]) -> Self {
-        let (mut vertices, mut tris) = parse_obj_file(file);
+        let (vertices, mut tris) = parse_obj_file(file);
         println!(
             "Adding {} vertices and {} triangles from OBJ file",
             vertices.len(),
@@ -66,11 +74,11 @@ impl SceneBuilder {
         );
         let bvh = bvh::create_bvh(&vertices, tris.as_mut());
 
-        let vert_offset = self.vertices.len() as u32;
-        let bvh_offset = self.bvh.len() as u32;
-        let tri_offset = self.tris.len() as u32;
-        let object_offset = self.objects.len() as u32;
-        let instance_offset = self.instance.len() as u32;
+        let vert_offset = self.buffers.get_length_unchecked(VERT_BUFFER) as u32;
+        let bvh_offset = self.buffers.get_length_unchecked(BVH_BUFFER) as u32;
+        let tri_offset = self.buffers.get_length_unchecked(TRI_BUFFER) as u32;
+        let object_offset = self.buffers.get_length_unchecked(OBJ_BUFFER) as u32;
+        let instance_offset = self.buffers.get_length_unchecked(INSTANCE_BUFFER) as u32;
 
         //print all offsets
         println!(
@@ -78,32 +86,32 @@ impl SceneBuilder {
             vert_offset, bvh_offset, tri_offset, object_offset, instance_offset
         );
 
-        self.vertices.append(&mut vertices);
-        for (v1, v2, v3) in tris {
-            self.tris.push((v1 + vert_offset, v2 + vert_offset, v3 + vert_offset));
-        }
-        for mut bvh_node in bvh {
-            if matches!(bvh_node.mode, ChildTriangleMode::Children) {
-                bvh_node.child_1_or_first_tri += bvh_offset;
-                bvh_node.child_2_or_last_tri += bvh_offset;
-            } else if matches!(bvh_node.mode, ChildTriangleMode::Triangles) {
-                bvh_node.child_1_or_first_tri += tri_offset;
-                bvh_node.child_2_or_last_tri += tri_offset;
+        self.buffers.append(VERT_BUFFER, &vertices);
+        
+        self.buffers.append(TRI_BUFFER, &tris.iter().map(|(v1, v2, v3)| {
+            (v1 + vert_offset, v2 + vert_offset, v3 + vert_offset)
+        }).collect::<Vec<(u32, u32, u32)>>());
+        
+        self.buffers.append(BVH_BUFFER, &bvh.iter().map(|bvh_node| {
+            let mut new_node = bvh_node.clone();
+            if matches!(new_node.mode, ChildTriangleMode::Children) {
+                new_node.child_1_or_first_tri += bvh_offset;
+                new_node.child_2_or_last_tri += bvh_offset;
+            } else if matches!(new_node.mode, ChildTriangleMode::Triangles) {
+                new_node.child_1_or_first_tri += tri_offset;
+                new_node.child_2_or_last_tri += tri_offset;
             }
-            self.bvh.push(bvh_node);
+            new_node
+        }).collect::<Vec<Bvh>>());
 
-        }
-        self.objects.push(Object {
+        self.buffers.append(OBJ_BUFFER, &[Object {
             bvh_root: bvh_offset,
-        });
-        self.instance.extend(
-            instance_matrices
-                .iter()
-                .map(|m| Instance {
-                    transform: *m,
-                    object_id: object_offset,
-                })
-        );
+        }]);
+
+        self.buffers.append(INSTANCE_BUFFER, &instance_matrices.iter().map(|m| Instance {
+            transform: *m,
+            object_id: object_offset,
+        }).collect::<Vec<Instance>>());
 
         self
     }
@@ -113,30 +121,15 @@ impl SceneBuilder {
         self
     }
 
-    pub fn build(self) -> (SceneInfo, BufferSceneInfo) {
+    pub fn build(self) -> (SceneInfo, BufferHolder) {
         let scene_info = SceneInfo {
-            num_instances: self.instance.len() as u32,
-            num_bvh_nodes: self.bvh.len() as u32,
-            num_triangles: self.tris.len() as u32,
+            num_instances: self.buffers.get_length_unchecked(INSTANCE_BUFFER) as u32,
+            num_bvh_nodes: self.buffers.get_length_unchecked(BVH_BUFFER) as u32,
+            num_triangles: self.buffers.get_length_unchecked(TRI_BUFFER) as u32,
             sun_orientation: self.sun_orientation,
         };
 
-        let buffer_scene_info = BufferSceneInfo {
-            vertices: self.vertices,
-            triangles: self.tris,
-            bvh: self.bvh,
-            instances: self.instance,
-            objects: self.objects,
-        };
-
-        (scene_info, buffer_scene_info)
+        (scene_info, self.buffers)
     }
 }
 
-pub struct BufferSceneInfo {
-    pub vertices: Vec<Vertex>,
-    pub triangles: Vec<(u32, u32, u32)>,
-    pub bvh: Vec<Bvh>,
-    pub instances: Vec<Instance>,
-    pub objects: Vec<Object>,
-}

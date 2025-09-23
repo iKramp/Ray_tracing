@@ -4,6 +4,7 @@ members = [
     "shared",
     "shader",
     "program",
+    "tracer",
 ]
 
 # Compile build-dependencies in release mode with

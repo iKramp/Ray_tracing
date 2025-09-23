@@ -74,7 +74,9 @@ pub struct CamData {
     pub frame: u32,
     pub debug_number: u32,
     pub debug_information: DebugInformation,
+    pub debug_point_color: Vertex,
     pub frames_without_move: f32,
+    pub random_seed: u32,
 }
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -82,6 +84,7 @@ pub enum DebugInformation {
     None,
     TriangleIntersection,
     BvhIntersection,
+    RecordPoints,
 }
 
 #[repr(C)]
@@ -109,7 +112,7 @@ impl Sphere {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Copy)]
 #[repr(C, align(16))]
 pub struct Vertex {
     pub pos: Vec3,
@@ -140,7 +143,13 @@ impl Clone for Vertex {
     }
 }
 
-#[derive(Debug)]
+impl PartialEq for Vertex {
+    fn eq(&self, other: &Self) -> bool {
+        self.pos == other.pos
+    }
+}
+
+#[derive(Debug, Clone)]
 #[repr(C, align(16))]
 pub struct BoundingBox {
     pub min: Vec3,
@@ -157,16 +166,18 @@ impl BoundingBox {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct Object {
     pub bvh_root: u32,
 }
 
+#[derive(Debug, Clone)]
 pub struct Instance {
     pub transform: glam::Affine3A,
     pub object_id: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(C, align(16))]
 pub struct Bvh {
     pub bounding_box: BoundingBox,
@@ -175,7 +186,7 @@ pub struct Bvh {
     pub mode: ChildTriangleMode,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[repr(u32)]
 pub enum ChildTriangleMode {
     Children = 0,

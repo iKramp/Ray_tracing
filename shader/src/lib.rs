@@ -3,84 +3,76 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(unexpected_cfgs)]
 #![feature(stmt_expr_attributes)]
+#![feature(iter_map_windows)]
 
 use glam::{UVec3, Vec3Swizzles};
-use modules::ObjectInfo;
 use shared::*;
 #[allow(unused_imports)]
 use spirv_std::glam::{vec2, vec4, Vec2, Vec4};
 use spirv_std::image;
 use spirv_std::spirv;
-pub mod modules;
-#[allow(unused_imports)]
-use modules::material::*;
 
 #[cfg(target_arch = "spirv")]
 use spirv_std::num_traits::Float;
+use tracer::debug_points::check_points_proximity;
+use tracer::modules::is_vec_3_nan;
+use tracer::tracer_main;
 
-use crate::modules::get_seed;
 
 #[spirv(compute(threads(16, 16)))]
-pub fn main(
+pub fn render_pixel(
     #[spirv(global_invocation_id)] id: UVec3,
 
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
     #[spirv(uniform, descriptor_set = 0, binding = 1)] scene_info: &SceneInfo,
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 2)] vertex_buffer: &[Vertex],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] triangle_buffer: &[(u32, u32, u32)],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] object_buffer: &[Object],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] instance_buffer: &[Instance],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] bvh_buffer: &[Bvh],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 7)] acc_buffer: &mut [Vec4],
 
-    // #[spirv(uniform_constant, descriptor_set = 0, binding = 7)] acc_output: &image::Image!(2D, sampled=false, __crate_root=crate, format=rgba32f),
-    #[spirv(uniform_constant, descriptor_set = 0, binding = 8)] res_output: &image::Image!(
+    #[spirv(uniform_constant, descriptor_set = 0, binding = 2)] res_output: &image::Image!(
         2D,
         sampled = false,
         __crate_root = crate,
         format = rgba32f
     ),
-) {
-    let objects = ObjectInfo {
-        vertex_buffer,
-        triangle_buffer,
-        object_buffer,
-        instance_buffer,
-        bvh_buffer,
-    };
 
-    if id.x >= data.canvas_width || id.y >= data.canvas_height {
-        // Out of bounds, skip processing.
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] acc_buffer: &mut [Vec4],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] vertex_buffer: &[Vertex],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] triangle_buffer: &[(u32, u32, u32)],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] bvh_buffer: &[Bvh],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 7)] object_buffer: &[Object],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 8)] instance_buffer: &[Instance],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 9)] debug_points_array: &mut [Vertex],
+) {
+
+    let res = check_points_proximity(data, debug_points_array, id.xy());
+    if !is_vec_3_nan(&res) {
+        unsafe { res_output.write(id.xy(), Vec4::new(res.x, res.y, res.z, 1.0)) }
         return;
     }
 
-    let coord_index = id.x + id.y * data.canvas_width;
-    let prev_color = acc_buffer[coord_index as usize];
-
-    let seed = get_seed(data.frame, id.x, id.y, prev_color.x, prev_color.y, prev_color.z);
-    
-
-    let rendered_color_3 = modules::trace::Ray::get_color(
-        (id.x as usize, id.y as usize),
-        seed,
+    let rendered_color = tracer_main(
+        id.xy(),
         data,
         scene_info,
-        &objects,
+        vertex_buffer,
+        triangle_buffer,
+        bvh_buffer,
+        object_buffer,
+        instance_buffer,
+        debug_points_array,
     );
 
-    let nan = rendered_color_3.x > 1000.0 || 
-        rendered_color_3.y > 1000.0 ||
-        rendered_color_3.z > 1000.0;
+    let nan =
+        rendered_color.x > 1000.0 || rendered_color.y > 1000.0 || rendered_color.z > 1000.0;
 
     let rendered_color = Vec4::new(
-        rendered_color_3.x,
-        rendered_color_3.y,
-        rendered_color_3.z,
+        rendered_color.x,
+        rendered_color.y,
+        rendered_color.z,
         1.0,
     );
 
-
     let new_color;
+    let coord_index = id.x + id.y * data.canvas_width;
+    let prev_color = acc_buffer[coord_index as usize];
 
     if data.frames_without_move < 0.5 {
         acc_buffer[coord_index as usize] = rendered_color;

@@ -19,7 +19,8 @@ use std::vec;
 
 use anyhow::{anyhow, Result};
 use log::*;
-use shared::glam::{self, Affine3A, Quat, Vec3, Vec4};
+use nalgebra_glm::UVec2;
+use shared::glam::{self, Affine3A, Quat, Vec3};
 use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;
 use vk::EntryV1_1;
@@ -29,14 +30,12 @@ use vulkanalia::window as vk_window;
 use vulkanalia::Version;
 use winit::window::Window;
 
-use shared::{CamData, Instance as ObjInstance, Object, SceneInfo, Vertex};
+use shared::{CamData, SceneInfo};
 use vulkanalia::vk::ExtDebugUtilsExtension;
 use vulkanalia::vk::KhrSurfaceExtension;
 use vulkanalia::vk::KhrSwapchainExtension;
 
-use shared::Bvh;
-
-use crate::modules::BufferSceneInfo;
+use crate::modules::buffers::BufferHolder;
 use crate::{HEIGHT, WIDTH};
 
 /// Whether the validation layers should be enabled.
@@ -59,7 +58,6 @@ const MAX_FRAMES_IN_FLIGHT: usize = 1;
 
 //UPDATE DESCRIPTORS HERE
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
-const NUM_STORAGE_DESCRIPTORS: u32 = 6;
 const NUM_IMAGE_DESCRIPTORS: u32 = 1;
 
 const MAX_VERTICES: usize = 1000000;
@@ -67,12 +65,6 @@ const MAX_TRIANGLES: usize = 1000000;
 const MAX_OBJECTS: usize = 100;
 const MAX_INSTANCES: usize = 1000;
 const MAX_BVH_NODES: usize = MAX_VERTICES; //this more than covers all possible vertices in a scene
-
-const VERTEX_BUFFER_LEN: usize = std::mem::size_of::<Vertex>() * MAX_VERTICES;
-const TRIANGLE_BUFFER_LEN: usize = std::mem::size_of::<(u32, u32, u32)>() * MAX_TRIANGLES;
-const OBJECT_BUFFER_LEN: usize = std::mem::size_of::<Object>() * MAX_OBJECTS;
-const INSTANCE_BUFFER_LEN: usize = std::mem::size_of::<ObjInstance>() * MAX_INSTANCES;
-const BVH_BUFFER_LEN: usize = std::mem::size_of::<Bvh>() * MAX_BVH_NODES;
 
 /// Our Vulkan app.
 pub(crate) struct App {
@@ -83,8 +75,10 @@ pub(crate) struct App {
     frame: usize,
     orientation: (f32, f32),
     pub cam_data: CamData,
-    scene_info: SceneInfo,
-    buffers: BufferSceneInfo,
+    pub scene_info: SceneInfo,
+    pub buffers: BufferHolder,
+    pub inc_rand: bool,
+    pub dbg_ray: Option<(Affine3A, (u32, u32))>
 }
 
 impl App {
@@ -125,14 +119,8 @@ impl App {
         window: &Window,
         cam_data: CamData,
         scene_info: SceneInfo,
-        buffers: BufferSceneInfo,
+        mut buffers: BufferHolder,
     ) -> Result<Self> {
-        assert!(buffers.vertices.len() <= MAX_VERTICES);
-        assert!(buffers.triangles.len() <= MAX_TRIANGLES);
-        assert!(buffers.objects.len() <= MAX_OBJECTS);
-        assert!(buffers.instances.len() <= MAX_INSTANCES);
-        assert!(buffers.bvh.len() <= MAX_BVH_NODES);
-
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
         let mut data = AppData::default();
@@ -144,14 +132,14 @@ impl App {
         let device = create_logical_device(&entry, &instance, &mut data)?;
         create_swapchain(window, &instance, &device, &mut data)?;
         create_swapchain_image_views(&device, &mut data)?;
-        create_descriptor_set_layout(&device, &mut data)?;
+        create_descriptor_set_layout(&device, &mut data, &mut buffers)?;
         create_pipeline(&device, &mut data)?;
         create_command_pool(&instance, &device, &mut data)?;
         create_uniform_buffers(&instance, &device, &mut data)?;
-        create_storage_buffers(&instance, &device, &mut data)?;
+        create_storage_buffers(&instance, &device, &mut data, &mut buffers)?;
         create_image_buffers(&instance, &device, &mut data)?;
-        create_descriptor_pool(&device, &mut data)?;
-        create_descriptor_sets(&device, &mut data)?;
+        create_descriptor_pool(&device, &mut data, &buffers)?;
+        create_descriptor_sets(&device, &mut data, &mut buffers)?;
         create_command_buffers(&device, &mut data)?;
         create_sync_objects(&device, &mut data)?;
         Ok(Self {
@@ -164,6 +152,8 @@ impl App {
             cam_data,
             scene_info,
             buffers,
+            inc_rand: true,
+            dbg_ray: None
         })
     }
 
@@ -171,7 +161,8 @@ impl App {
     pub(crate) unsafe fn render(&mut self, window: &Window) -> Result<()> {
         let in_flight_fence = self.data.in_flight_fences[self.frame];
 
-        self.device.wait_for_fences(&self.data.in_flight_fences, true, u64::MAX)?;
+        self.device
+            .wait_for_fences(&self.data.in_flight_fences, true, u64::MAX)?;
 
         let result = self.device.acquire_next_image_khr(
             self.data.swapchain,
@@ -235,7 +226,7 @@ impl App {
         Ok(())
     }
 
-    unsafe fn update_buffers(&self, image_index: usize) -> Result<()> {
+    unsafe fn update_buffers(&mut self, image_index: usize) -> Result<()> {
         //UPDATE DESCRIPTORS HERE
 
         // Copy
@@ -247,9 +238,8 @@ impl App {
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.cam_data, cam_data_memory.cast(), 1);
-        self.device.unmap_memory(
-            self.data.uniform_buffers_memory[0],
-        );
+        self.device
+            .unmap_memory(self.data.uniform_buffers_memory[0]);
 
         //---------------
 
@@ -260,94 +250,33 @@ impl App {
             vk::MemoryMapFlags::empty(),
         )?;
         memcpy(&self.scene_info, scene_info_memory.cast(), 1);
-        self.device.unmap_memory(
-            self.data.uniform_buffers_memory[1],
-        );
+        self.device
+            .unmap_memory(self.data.uniform_buffers_memory[1]);
 
         //----------------STORAGE DESCRIPTORS----------------
 
-        let vertex_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[0],
-            0,
-            VERTEX_BUFFER_LEN as u64,
-            vk::MemoryMapFlags::empty(),
-        )?;
-        memcpy(
-            self.buffers.vertices.as_ptr(),
-            vertex_buffer_memory.cast(),
-            self.buffers.vertices.len(),
-        );
-        self.device.unmap_memory(
-            self.data.storage_buffers_memory[0],
-        );
-
-        //---------------
-
-        let triangle_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[1],
-            0,
-            TRIANGLE_BUFFER_LEN as u64,
-            vk::MemoryMapFlags::empty(),
-        )?;
-        memcpy(
-            self.buffers.triangles.as_ptr(),
-            triangle_buffer_memory.cast(),
-            self.buffers.triangles.len(),
-        );
-        self.device.unmap_memory(
-            self.data.storage_buffers_memory[1],
-        );
-
-        //---------------
-
-        let object_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[2],
-            0,
-            OBJECT_BUFFER_LEN as u64,
-            vk::MemoryMapFlags::empty(),
-        )?;
-        memcpy(
-            self.buffers.objects.as_ptr(),
-            object_buffer_memory.cast(),
-            self.buffers.objects.len(),
-        );
-        self.device.unmap_memory(
-            self.data.storage_buffers_memory[2],
-        );
-
-        //---------------
-
-        let instance_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[3],
-            0,
-            INSTANCE_BUFFER_LEN as u64,
-            vk::MemoryMapFlags::empty(),
-        )?;
-        memcpy(
-            self.buffers.instances.as_ptr(),
-            instance_buffer_memory.cast(),
-            self.buffers.instances.len(),
-        );
-        self.device.unmap_memory(
-            self.data.storage_buffers_memory[3],
-        );
-
-        //---------------
-
-        let bvh_buffer_memory = self.device.map_memory(
-            self.data.storage_buffers_memory[4],
-            0,
-            BVH_BUFFER_LEN as u64,
-            vk::MemoryMapFlags::empty(),
-        )?;
-        memcpy(
-            self.buffers.bvh.as_ptr(),
-            bvh_buffer_memory.cast(),
-            self.buffers.bvh.len(),
-        );
-        self.device.unmap_memory(
-            self.data.storage_buffers_memory[4],
-        );
+        if self.buffers.has_changed() {
+            self.buffers.clear_changed();
+            let buffers = self.buffers.get_all_buffers();
+            buffers.for_each(|buffer| {
+                let buffer_memory = self
+                    .device
+                    .map_memory(
+                        self.data.storage_buffers_memory[buffer.index],
+                        0,
+                        buffer.data.len() as u64,
+                        vk::MemoryMapFlags::empty(),
+                    )
+                    .unwrap();
+                memcpy(
+                    buffer.data.as_ptr(),
+                    buffer_memory.cast(),
+                    buffer.data.len(),
+                );
+                self.device
+                    .unmap_memory(self.data.storage_buffers_memory[buffer.index]);
+            });
+        }
 
         Ok(())
     }
@@ -360,10 +289,10 @@ impl App {
         create_swapchain(window, &self.instance, &self.device, &mut self.data)?;
         create_swapchain_image_views(&self.device, &mut self.data)?;
         create_uniform_buffers(&self.instance, &self.device, &mut self.data)?;
-        create_storage_buffers(&self.instance, &self.device, &mut self.data)?;
+        create_storage_buffers(&self.instance, &self.device, &mut self.data, &mut self.buffers)?;
         create_image_buffers(&self.instance, &self.device, &mut self.data)?;
-        create_descriptor_pool(&self.device, &mut self.data)?;
-        create_descriptor_sets(&self.device, &mut self.data)?;
+        create_descriptor_pool(&self.device, &mut self.data, &self.buffers)?;
+        create_descriptor_sets(&self.device, &mut self.data, &mut self.buffers)?;
         create_command_buffers(&self.device, &mut self.data)?;
         self.data.images_in_flight.resize(self.data.swapchain_images.len(), vk::Fence::null());
         Ok(())
@@ -918,7 +847,7 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
     let stage_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::COMPUTE)
         .module(compute_shader_module)
-        .name(b"main\0") // entry point in your GLSL or SPIR-V
+        .name(b"render_pixel\0") // entry point in your GLSL or SPIR-V
         .build();
 
     // Descriptor set layout(s)
@@ -1144,7 +1073,11 @@ unsafe fn insert_image_memory_barrier(
     );
 }
 
-unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_descriptor_set_layout(
+    device: &Device,
+    data: &mut AppData,
+    buffers: &mut BufferHolder,
+) -> Result<()> {
     //UPDATE DESCRIPTORS HERE
     let ubo_binding_1 = vk::DescriptorSetLayoutBinding::builder()
         .binding(0)
@@ -1158,60 +1091,32 @@ unsafe fn create_descriptor_set_layout(device: &Device, data: &mut AppData) -> R
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
-    let storage_buffer_binding_1 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(2)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
-    let storage_buffer_binding_2 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(3)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
-    let storage_buffer_binding_3 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(4)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
-    let storage_buffer_binding_4 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(5)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
-    let storage_buffer_binding_5 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(6)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
-    let storage_buffer_binding_6 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(7)
-        .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(1)
-        .stage_flags(vk::ShaderStageFlags::COMPUTE);
-
     let image_buffer_binding_2 = vk::DescriptorSetLayoutBinding::builder()
-        .binding(8)
+        .binding(2)
         .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
         .descriptor_count(1)
         .stage_flags(vk::ShaderStageFlags::COMPUTE);
 
-    let bindings = &[
-        ubo_binding_1,
-        ubo_binding_2,
-        storage_buffer_binding_1,
-        storage_buffer_binding_2,
-        storage_buffer_binding_3,
-        storage_buffer_binding_4,
-        storage_buffer_binding_5,
-        storage_buffer_binding_6,
-        image_buffer_binding_2,
-    ];
-    let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(bindings);
+    let storage_bindings = buffers
+        .get_all_buffers()
+        .map(|buffer| {
+            vk::DescriptorSetLayoutBinding::builder()
+                .binding((3 + buffer.index) as u32) // Start from binding 3
+                .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+                .descriptor_count(1)
+                .stage_flags(vk::ShaderStageFlags::COMPUTE)
+        })
+        .collect::<Vec<_>>();
+
+    let bindings = &[ubo_binding_1, ubo_binding_2, image_buffer_binding_2];
+
+    let bindings = bindings
+        .iter()
+        .chain(storage_bindings.iter())
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let info = vk::DescriptorSetLayoutCreateInfo::builder().bindings(&bindings);
 
     data.descriptor_set_layout = device.create_descriptor_set_layout(&info, None)?;
 
@@ -1330,83 +1235,33 @@ unsafe fn create_storage_buffers(
     instance: &Instance,
     device: &Device,
     data: &mut AppData,
+    buffers: &mut BufferHolder,
 ) -> Result<()> {
     //UPDATE DESCRIPTORS HERE
     data.storage_buffers.clear();
     data.storage_buffers_memory.clear();
 
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        VERTEX_BUFFER_LEN as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
+    let mut new_buffers = Vec::new();
+    let mut new_buffers_memory = Vec::new();
 
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
+    let buffers = buffers.get_all_buffers();
+    buffers.for_each(|buffer| {
+        let (storage_buffer, storage_buffer_memory) = create_buffer(
+            instance,
+            device,
+            data,
+            buffer.data.len() as u64,
+            vk::BufferUsageFlags::STORAGE_BUFFER,
+            vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
+        )
+        .unwrap();
 
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        TRIANGLE_BUFFER_LEN as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
+        new_buffers.push(storage_buffer);
+        new_buffers_memory.push(storage_buffer_memory);
+    });
 
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
-
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        OBJECT_BUFFER_LEN as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
-
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
-
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        INSTANCE_BUFFER_LEN as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
-
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
-
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        BVH_BUFFER_LEN as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
-
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
-
-    let (storage_buffer, storage_buffer_memory) = create_buffer(
-        instance,
-        device,
-        data,
-        (WIDTH * HEIGHT * std::mem::size_of::<Vec4>()) as u64,
-        vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
-    )?;
-
-    data.storage_buffers.push(storage_buffer);
-    data.storage_buffers_memory.push(storage_buffer_memory);
-
+    data.storage_buffers = new_buffers;
+    data.storage_buffers_memory = new_buffers_memory;
     Ok(())
 }
 
@@ -1496,14 +1351,20 @@ fn find_memory_type(
     Err(anyhow!("Failed to find suitable memory type."))
 }
 
-unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_descriptor_pool(
+    device: &Device,
+    data: &mut AppData,
+    buffers: &BufferHolder,
+) -> Result<()> {
+    let num_storage_buffers = buffers.get_all_buffers().count() as u32;
+
     let ubo_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::UNIFORM_BUFFER)
         .descriptor_count(NUM_UNIFORM_DESCRIPTORS);
 
     let storage_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::STORAGE_BUFFER)
-        .descriptor_count(NUM_STORAGE_DESCRIPTORS);
+        .descriptor_count(num_storage_buffers);
 
     let image_size = vk::DescriptorPoolSize::builder()
         .type_(vk::DescriptorType::STORAGE_IMAGE)
@@ -1512,14 +1373,18 @@ unsafe fn create_descriptor_pool(device: &Device, data: &mut AppData) -> Result<
     let pool_sizes = &[ubo_size, storage_size];
     let info = vk::DescriptorPoolCreateInfo::builder()
         .pool_sizes(pool_sizes)
-        .max_sets(NUM_UNIFORM_DESCRIPTORS + NUM_STORAGE_DESCRIPTORS + NUM_IMAGE_DESCRIPTORS);
+        .max_sets(NUM_UNIFORM_DESCRIPTORS + num_storage_buffers + NUM_IMAGE_DESCRIPTORS);
 
     data.descriptor_pool = device.create_descriptor_pool(&info, None)?;
 
     Ok(())
 }
 
-unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<()> {
+unsafe fn create_descriptor_sets(
+    device: &Device,
+    data: &mut AppData,
+    buffers: &mut BufferHolder,
+) -> Result<()> {
     //UPDATE DESCRIPTORS HERE
     // Allocate
 
@@ -1544,35 +1409,16 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
         .range(std::mem::size_of::<SceneInfo>() as u64);
 
     //----------STORAGE BUFFERS----------
-    let vertex_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[0])
-        .offset(0)
-        .range(VERTEX_BUFFER_LEN as u64);
 
-    let triangle_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[1])
-        .offset(0)
-        .range(TRIANGLE_BUFFER_LEN as u64);
-
-    let object_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[2])
-        .offset(0)
-        .range(OBJECT_BUFFER_LEN as u64);
-
-    let instance_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[3])
-        .offset(0)
-        .range(INSTANCE_BUFFER_LEN as u64);
-
-    let bvh_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[4])
-        .offset(0)
-        .range(BVH_BUFFER_LEN as u64);
-
-    let acc_buffer_info = vk::DescriptorBufferInfo::builder()
-        .buffer(data.storage_buffers[5])
-        .offset(0)
-        .range((WIDTH * HEIGHT * std::mem::size_of::<Vec4>()) as u64);
+    let buffers = buffers.get_all_buffers();
+    let storage_buffer_infos = buffers
+        .map(|buffer| {
+            vk::DescriptorBufferInfo::builder()
+                .buffer(data.storage_buffers[buffer.index])
+                .offset(0)
+                .range(buffer.data.len() as u64)
+        })
+        .collect::<Vec<_>>();
 
     //----------IMAGE BUFFERS----------
     let res_image_info = vk::DescriptorImageInfo::builder()
@@ -1590,21 +1436,14 @@ unsafe fn create_descriptor_sets(device: &Device, data: &mut AppData) -> Result<
         vk::WriteDescriptorSet::builder()
             .dst_set(data.descriptor_sets[0])
             .dst_binding(2)
-            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
-            .buffer_info(&[
-                vertex_info,
-                triangle_info,
-                object_info,
-                instance_info,
-                bvh_info,
-                acc_buffer_info,
-            ])
+            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
+            .image_info(&[res_image_info])
             .build(),
         vk::WriteDescriptorSet::builder()
             .dst_set(data.descriptor_sets[0])
-            .dst_binding(8)
-            .descriptor_type(vk::DescriptorType::STORAGE_IMAGE)
-            .image_info(&[res_image_info])
+            .dst_binding(3)
+            .descriptor_type(vk::DescriptorType::STORAGE_BUFFER)
+            .buffer_info(&storage_buffer_infos)
             .build(),
     ];
 

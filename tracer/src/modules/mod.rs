@@ -6,46 +6,40 @@ pub mod hit;
 pub mod material;
 pub mod trace;
 
-pub fn get_seed(
-    frame: u32,
-    x: u32,
-    y: u32,
-    prev_r: f32,
-    prev_g: f32,
-    prev_b: f32,
-) -> u32 {
-    let mut h = 0;
+pub fn get_seed(x: u32, y: u32, external_seed: u32) -> u32 {
+    let mut h = external_seed;
 
-    // mix in all components with relatively large odd constants
-    h ^= frame.wrapping_mul(0x9E3779B9);
-    h ^= x.wrapping_mul(0x85EBCA77);
-    h ^= y.wrapping_mul(0xC2B2AE3D);
-    h ^= prev_r.to_bits().wrapping_mul(0x27D4EB2F);
-    h ^= prev_g.to_bits().wrapping_mul(0x165667B1);
-    h ^= prev_b.to_bits().wrapping_mul(0x7F4A7C15);
+    // Mix in coordinates with large odd constants
+    h ^= x.wrapping_mul(0x85EB_CA77);
+    h ^= y.wrapping_mul(0xC2B2_AE3D);
 
-    // avalanche
+    // Avalanche (final mixing for good distribution)
     h ^= h >> 16;
-    h = h.wrapping_mul(0x7FEB352D);
+    h = h.wrapping_mul(0x7FEB_352D);
     h ^= h >> 15;
-    h = h.wrapping_mul(0x846CA68B);
+    h = h.wrapping_mul(0x846C_A68B);
     h ^= h >> 16;
 
     h
 }
 
-pub fn xor_shift(seed: u32) -> u32 {
-    let mut x = seed;
+pub fn xor_shift(seed: &mut u32) -> u32 {
+    let mut x = *seed;
     x ^= x << 13;
     x ^= x >> 17;
     x ^= x << 5;
+    *seed = x;
     x
 }
 
+fn u32_to_f32_range(value: u32, range: (f32, f32)) -> f32 {
+    let normalized = (value as f32) / (u32::MAX as f32 + 1.0);
+    range.0 + normalized * (range.1 - range.0)
+}
+
 pub fn rand_float(seed: &mut u32, range: (f32, f32)) -> f32 {
-    let num = xor_shift(*seed);
-    *seed = num;
-    (*seed & 65535) as f32 / 65535.0 * (range.1 - range.0) + range.0
+    xor_shift(seed);
+    u32_to_f32_range(*seed, range)
 }
 
 pub fn is_nan(value: f32) -> bool {

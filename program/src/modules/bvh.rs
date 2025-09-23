@@ -1,5 +1,3 @@
-use std::ops::Div;
-
 use shared::{glam::Vec3, BoundingBox, Bvh, ChildTriangleMode, Vertex};
 
 const MAX_DEPTH: u8 = 32;

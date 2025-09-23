@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use super::hit::*;
 use super::material::*;
 use super::rand_float;
@@ -6,6 +8,7 @@ use shared::glam::Vec3;
 use shared::glam::Vec4;
 use shared::BoundingBox;
 use shared::CamData;
+use shared::Vertex;
 //use crate::Resources;
 use core::f32::consts::PI;
 #[allow(unused_imports)]
@@ -43,6 +46,51 @@ pub fn vector_angle(lhs: Vec4, rhs: Vec4) -> f32 {
     let dot_product = lhs.dot(rhs);
     let len_product = lhs.length() * rhs.length();
     (dot_product / len_product).acos()
+}
+
+pub fn get_color(
+    (pix_x, pix_y): (usize, usize),
+    mut rng_seed: u32,
+    data: &CamData,
+    scene_info: &shared::SceneInfo,
+    objects: &ObjectInfo,
+    debug_points_array: &mut [Vertex],
+) -> Vec3 {
+    let mut color = Vec3::new(1.0, 1.0, 1.0);
+
+    let mut vec = claculate_vec_dir_from_cam(
+        data,
+        (
+            pix_x as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
+            pix_y as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
+        ),
+    );
+    vec.normalize();
+
+    if data.debug_information == shared::DebugInformation::RecordPoints {
+        debug_points_array[0] = Vertex::new(vec.pos);
+        debug_points_array[1] = Vertex::new(vec.pos + vec.orientation * 100.0);
+    }
+
+    for i in 0..data.depth {
+        //depth
+        vec.pos += vec.orientation * f32::EPSILON * 100.0;
+        let ray_return = vec.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
+
+        if data.debug_information == shared::DebugInformation::RecordPoints {
+            debug_points_array[i as usize + 1] = Vertex::new(vec.pos);
+            debug_points_array[i as usize + 2] = Vertex::new(vec.pos + vec.orientation * 100.0);
+        }
+
+        match ray_return {
+            RayReturnState::Ray => {}
+            _ => {
+                return color;
+            }
+        }
+    }
+    //never finished bouncing
+    Vec3::default()
 }
 
 #[derive(Clone, Copy)]
@@ -91,7 +139,13 @@ impl Ray {
             };
 
             let clamp = (f32::EPSILON, record.t);
-            mesh.hit(&ray, clamp, &mut record, i as u32, get_backface_culling(i as u32));
+            mesh.hit(
+                &ray,
+                clamp,
+                &mut record,
+                i as u32,
+                get_backface_culling(i as u32),
+            );
         }
 
         #[cfg(feature = "debug")]
@@ -131,6 +185,8 @@ impl Ray {
                 sky_material.get_stop_color(self.orientation, (0.0, 0.0), self.orientation);
             *color = stop_col;
 
+            *self = Ray::new(self.pos + self.orientation * 1000.0, Vec3::ZERO);
+
             return RayReturnState::Stop;
         }
 
@@ -139,9 +195,9 @@ impl Ray {
 
         let triangle = {
             let tmp_tri = objects.triangle_buffer[record.triangle_id as usize];
-            let mut vert_1 = objects.vertex_buffer[tmp_tri.0 as usize].clone();
-            let mut vert_2 = objects.vertex_buffer[tmp_tri.1 as usize].clone();
-            let mut vert_3 = objects.vertex_buffer[tmp_tri.2 as usize].clone();
+            let mut vert_1 = objects.vertex_buffer[tmp_tri.0 as usize];
+            let mut vert_2 = objects.vertex_buffer[tmp_tri.1 as usize];
+            let mut vert_3 = objects.vertex_buffer[tmp_tri.2 as usize];
             vert_1.pos = transform.transform_point3(vert_1.pos);
             vert_2.pos = transform.transform_point3(vert_2.pos);
             vert_3.pos = transform.transform_point3(vert_3.pos);
@@ -156,6 +212,7 @@ impl Ray {
             a.cross(b).normalize()
         };
 
+
         let uv = (0.0, 0.0);
 
         let mat_return = if material_id == 0 {
@@ -169,40 +226,18 @@ impl Ray {
         *self = mat_return.new_ray;
         *color = mat_return.next_color;
 
-        mat_return.ray_return_state
-    }
-
-    pub fn get_color(
-        (pix_x, pix_y): (usize, usize),
-        mut rng_seed: u32,
-        data: &CamData,
-        scene_info: &shared::SceneInfo,
-        objects: &ObjectInfo,
-    ) -> Vec3 {
-        let mut color = Vec3::new(1.0, 1.0, 1.0);
-
-        let mut vec = claculate_vec_dir_from_cam(
-            data,
-            (
-                pix_x as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
-                pix_y as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
-            ),
-        );
-        vec.normalize();
-
-        for _ in 0..data.depth {
-            //depth
-            let ray_return = vec.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
-
-            match ray_return {
-                RayReturnState::Ray => {}
-                _ => {
-                    return color;
-                }
-            }
+        #[cfg(not(target_arch = "spirv"))]
+        {
+            //debug normal, hit point, triangle, color
+            println!(
+                "Hit triangle: {:?}, normal: {:?}, at point: {:?}, t: {}",
+                record.triangle_id, normal, ray.pos + ray.orientation * record.t, record.t
+            );
+            println!("Color after hit: {color:?}");
+            
         }
-        //never finished bouncing
-        Vec3::default()
+
+        mat_return.ray_return_state
     }
 
     pub(super) fn hits_bounding(&self, bounding_box: &BoundingBox) -> f32 {
@@ -229,9 +264,7 @@ impl Ray {
     }
 }
 
-fn get_backface_culling(
-    instance_id: u32,
-) -> bool {
+fn get_backface_culling(instance_id: u32) -> bool {
     if instance_id == 0 {
         MATERIAL_0.backface_culling()
     } else if instance_id == 1 {

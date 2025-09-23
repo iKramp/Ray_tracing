@@ -9,6 +9,7 @@ use spirv_std::num_traits::Float;
 
 pub struct HitRecord {
     pub triangle_id: u32,
+    pub prev_triangle_id: u32,
     pub t: f32,
     pub instance_id: u32,
     #[cfg(feature = "debug")]
@@ -23,6 +24,7 @@ impl HitRecord {
         HitRecord {
             t: f32::INFINITY,
             triangle_id: u32::MAX,
+            prev_triangle_id: u32::MAX,
             instance_id: 0,
             #[cfg(feature = "debug")]
             triangle_tests: 0,

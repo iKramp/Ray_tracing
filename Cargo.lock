@@ -1759,6 +1759,7 @@ dependencies = [
  "spirv-builder",
  "spirv-std",
  "thiserror 2.0.15",
+ "tracer",
  "vulkanalia",
  "winit",
 ]
@@ -2118,6 +2119,7 @@ version = "0.1.0"
 dependencies = [
  "shared",
  "spirv-std",
+ "tracer",
 ]
 
 [[package]]
@@ -2503,6 +2505,14 @@ name = "toml_write"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
+
+[[package]]
+name = "tracer"
+version = "0.1.0"
+dependencies = [
+ "shared",
+ "spirv-std",
+]
 
 [[package]]
 name = "tracing"

@@ -1,7 +1,6 @@
 use core::f32;
 use core::f32::consts::PI;
 
-use crate::modules::is_vec_3_nan;
 use crate::modules::trace::Ray;
 
 //use image::GenericImageView;
@@ -85,18 +84,27 @@ impl GenericMaterial {
         new_ray
     }
 
-    fn can_refract(curr_ior: f32, next_ior: f32, curr_sintheta: f32) -> bool {
-        let sintheta2 = curr_ior / next_ior * curr_sintheta;
-        sintheta2 < 1.0
+    fn can_refract(curr_ior: f32, next_ior: f32, cos_theta: f32) -> bool {
+        let sin2_theta = 1.0 - cos_theta * cos_theta;
+        let ratio = curr_ior / next_ior;
+        ratio * ratio * sin2_theta <= 1.0
     }
 
     fn schlick_reflectance(ior1: f32, ior2: f32, cos_theta: f32) -> f32 {
+        let cos_theta = cos_theta.clamp(0.0, 1.0);
         let r0 = (ior1 - ior2) / (ior1 + ior2);
         let r0_squared = r0 * r0;
         r0_squared + (1.0 - r0_squared) * (1.0 - cos_theta).powi(5)
     }
 
-    fn reflect_specular(&self, curr_color: Vec3, in_ray: Ray, normal: Vec3, t: f32, seed: &mut u32) -> MaterialReturn {
+    fn reflect_specular(
+        &self,
+        curr_color: Vec3,
+        in_ray: Ray,
+        normal: Vec3,
+        t: f32,
+        seed: &mut u32,
+    ) -> MaterialReturn {
         let new_ray = Self::reflect(in_ray.orientation, normal, self.specular_roughness, seed);
 
         //color doesn't change
@@ -110,7 +118,14 @@ impl GenericMaterial {
         }
     }
 
-    fn reflect_regular(&self, curr_color: Vec3, in_ray: Ray, normal: Vec3, t: f32, seed: &mut u32) -> MaterialReturn {
+    fn reflect_regular(
+        &self,
+        curr_color: Vec3,
+        in_ray: Ray,
+        normal: Vec3,
+        t: f32,
+        seed: &mut u32,
+    ) -> MaterialReturn {
         let new_ray = Self::reflect(in_ray.orientation, normal, self.roughness, seed);
 
         MaterialReturn {
@@ -123,29 +138,32 @@ impl GenericMaterial {
         }
     }
 
-    fn refract(&self, curr_color: Vec3, in_ray: Ray, normal: Vec3, t: f32, seed: &mut u32) -> MaterialReturn {
+    fn refract(
+        &self,
+        curr_color: Vec3,
+        in_ray: Ray,
+        normal: Vec3,
+        t: f32,
+        seed: &mut u32,
+    ) -> MaterialReturn {
         let front_face = in_ray.orientation.dot(normal) < 0.0;
         //normal vector on the incoming side of the surface
-        let normal_incoming = if front_face {
-            normal
-        } else {
-            -normal
-        };
+        let normal_incoming = if front_face { normal } else { -normal };
 
         let refraction_ratio = if front_face { 1.0 / self.ior } else { self.ior };
 
-        let next_ray_perfect = in_ray.orientation.refract(normal_incoming, refraction_ratio).normalize();
-
-        let next_ray_diffuse = diffuse_ray_direction(seed, normal).normalize();
-        let next_ray = next_ray_perfect.lerp(next_ray_diffuse, self.roughness);
+        let next_ray_perfect = in_ray
+            .orientation
+            .refract(normal_incoming, refraction_ratio)
+            .normalize();
 
         MaterialReturn {
             ray_return_state: RayReturnState::Ray,
             new_ray: Ray {
                 pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray.normalize(),
+                orientation: next_ray_perfect,
             },
-            next_color: curr_color
+            next_color: curr_color,
         }
     }
 }
@@ -160,25 +178,28 @@ impl Material for GenericMaterial {
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
-        let cos_theta = in_ray.orientation.dot(normal);
-        let sin_theta = (1.0 - cos_theta * cos_theta).sqrt();
+        let entering = in_ray.orientation.dot(normal) < 0.0;
 
-        if self.specular > 0.0 {
+        if self.specular > f32::EPSILON {
             let rand_specular = rand_float(seed, (0.0, 1.0));
             if self.specular > rand_specular {
                 return self.reflect_specular(curr_color, in_ray, normal, t, seed);
             }
         }
 
-        if self.ior > 0.0 {
-            let ior_parts = if in_ray.orientation.dot(normal) < 0.0 {
-                (1.0, self.ior)
+        if self.ior > f32::EPSILON {
+            let (ior1, ior2, cos_theta) = if entering {
+                let cos_theta = -in_ray.orientation.dot(normal);
+                (1.0, self.ior, cos_theta)
             } else {
-                (self.ior, 1.0)
+                let cos_theta = in_ray.orientation.dot(normal);
+                (self.ior, 1.0, cos_theta)
             };
-            let reflectance = Self::schlick_reflectance(ior_parts.0, ior_parts.1, cos_theta.abs()).min(1.0);
+
+            let reflectance = Self::schlick_reflectance(ior1, ior2, cos_theta).min(1.0);
+
             let rand_refract = rand_float(seed, (0.0, 1.0));
-            if rand_refract > reflectance && Self::can_refract(ior_parts.0, ior_parts.1, sin_theta) {
+            if rand_refract > reflectance && Self::can_refract(ior1, ior2, cos_theta) {
                 return self.refract(curr_color, in_ray, normal, t, seed);
             } else {
                 return self.reflect_specular(curr_color, in_ray, normal, t, seed);
@@ -277,16 +298,21 @@ impl NormalMaterial {
         _ray_dir: Vec3,
     ) -> Vec3 {
         let color = {
-            if normal.dot(Vec3::new(0.0, 1.0, 0.0)).abs() > 0.9 { //top/bottom
+            if normal.dot(Vec3::new(0.0, 1.0, 0.0)).abs() > 0.9 {
+                //top/bottom
                 Vec3::new(1.0, 1.0, 1.0) //white
-            } else if normal.dot(Vec3::new(-1.0, 0.0, 0.0)) > 0.9 { //right
+            } else if normal.dot(Vec3::new(-1.0, 0.0, 0.0)) > 0.9 {
+                //right
                 Vec3::new(0.1, 1.0, 0.1) //green
-            } else if normal.dot(Vec3::new(1.0, 0.0, 0.0)) > 0.9 { //left
+            } else if normal.dot(Vec3::new(1.0, 0.0, 0.0)) > 0.9 {
+                //left
                 Vec3::new(0.1, 0.1, 1.0) //red
-            } else if normal.dot(Vec3::new(0.0, 0.0, -1.0)) > 0.9 { //front
+            } else if normal.dot(Vec3::new(0.0, 0.0, -1.0)) > 0.9 {
+                //front
                 Vec3::new(1.0, 0.1, 0.1) //blue
-            } else if normal.dot(Vec3::new(0.0, 0.0, 1.0)) > 0.9 { //back
-                Vec3::ZERO //black
+            } else if normal.dot(Vec3::new(0.0, 0.0, 1.0)) > 0.9 {
+                //back
+                Vec3::ONE //black
             } else {
                 Vec3::ZERO //default black
             }

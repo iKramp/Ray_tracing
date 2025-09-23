@@ -18,6 +18,7 @@ png = "0.17"
 pretty_env_logger = "0.5.0"
 thiserror = "2.0"
 shared = { path = "../shared" }
+tracer = { path = "../tracer" }
 
 
 # set custom dependency for windows

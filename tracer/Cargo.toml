@@ -1,5 +1,5 @@
 [package]
-name = "shader"
+name = "tracer"
 version = "0.1.0"
 edition = "2021"
 
@@ -8,10 +8,9 @@ edition = "2021"
 [dependencies]
 spirv-std = {workspace = true }
 shared = { path = "../shared" }
-tracer = { path = "../tracer" }
 
 [lib]
-crate-type = ["dylib"]
+crate-type = ["lib"]
 
 # debug feature
 [features]
