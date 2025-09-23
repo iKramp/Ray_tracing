@@ -1,6 +1,5 @@
 use shared::{
-    glam::{UVec2, Vec2, Vec3},
-    CamData, Vertex,
+    glam::{UVec2, Vec2, Vec3}, CamData, Vec3Aligned
 };
 #[allow(unused_imports)] //used for gpu
 use spirv_std::num_traits::Float;
@@ -9,20 +8,20 @@ use crate::modules::{is_nan, is_vec_3_nan};
 
 pub fn check_points_proximity(
     data: &CamData,
-    points: &[Vertex],
+    points: &[Vec3Aligned],
     pixel_coord: UVec2,
 ) -> Vec3 {
     let mut counter = 0;
     loop {
-        let point1 = points[counter].clone();
-        let point2 = points[counter + 1].clone();
-        if is_vec_3_nan(&point1.pos) || is_vec_3_nan(&point2.pos) {
+        let point1 = points[counter];
+        let point2 = points[counter + 1];
+        if is_vec_3_nan(&point1) || is_vec_3_nan(&point2) {
             return Vec3::NAN;
         }
         counter += 1;
 
-        let a = project_world_point(data, point1.pos);
-        let b = project_world_point(data, point2.pos);
+        let a = project_world_point(data, *point1);
+        let b = project_world_point(data, *point2);
 
         if is_nan(a.0) || is_nan(a.1) || is_nan(b.0) || is_nan(b.1) {
             continue;
@@ -44,7 +43,7 @@ pub fn check_points_proximity(
             let dist_sq = (Vec2::new(pixel_coord.x as f32, pixel_coord.y as f32) - projection)
                 .length_squared();
             if dist_sq < 1.0 {
-                return data.debug_point_color.pos;
+                return *data.debug_point_color;
             } else if dist_sq < 4.0 {
                 return Vec3::ZERO;
             }

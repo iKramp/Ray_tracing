@@ -1,4 +1,4 @@
-use shared::{glam::{Affine3A, Mat3}, Bvh, Instance, Object, Vertex};
+use shared::{glam::{Affine3A, Mat3}, Bvh, Face, Instance, Object, Vec2Aligned, Vec3Aligned, Vertex};
 
 use crate::modules::trace::Ray;
 
@@ -73,7 +73,9 @@ pub fn is_aff3a_nan(mat: &Affine3A) -> bool {
 
 pub struct ObjectInfo<'a> {
     pub vertex_buffer: &'a [Vertex],
-    pub triangle_buffer: &'a [(u32, u32, u32)],
+    pub normal_buffer: &'a [Vec3Aligned],
+    pub uv_buffer: &'a [Vec2Aligned],
+    pub triangle_buffer: &'a [Face],
     pub object_buffer: &'a [Object],
     pub instance_buffer: &'a [Instance],
     pub bvh_buffer: &'a [Bvh],

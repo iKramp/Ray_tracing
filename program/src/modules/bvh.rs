@@ -1,8 +1,8 @@
-use shared::{glam::Vec3, BoundingBox, Bvh, ChildTriangleMode, Vertex};
+use shared::{glam::Vec3, BoundingBox, Bvh, ChildTriangleMode, Face, Vertex};
 
 const MAX_DEPTH: u8 = 32;
 
-pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec<Bvh> {
+pub fn create_bvh(vertices: &[Vertex], triangles: &mut [Face]) -> Vec<Bvh> {
     let mut bvh_nodes = Vec::new();
     let bounding_box = find_bounding_box(triangles, vertices);
     bvh_nodes.push(Bvh {
@@ -28,7 +28,7 @@ pub fn create_bvh(vertices: &[Vertex], triangles: &mut [(u32, u32, u32)]) -> Vec
 fn create_bvh_recursive(
     vertices: &[Vertex],
     start_index: u32,
-    triangles: &mut [(u32, u32, u32)],
+    triangles: &mut [Face],
     bvh_nodes: &mut Vec<Bvh>,
     parent_node_index: u32,
     depth: u8,
@@ -92,7 +92,7 @@ fn create_bvh_recursive(
     }
 }
 
-fn find_ideal_split(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex], splits: usize) -> (u32, usize) {
+fn find_ideal_split(triangles: &mut [Face], vertices: &[Vertex], splits: usize) -> (u32, usize) {
     let mut best_result = f32::MAX;
     let mut best_axis = 0;
     let mut best_split = 0;
@@ -124,28 +124,28 @@ fn box_srface_area(bounding_box: &BoundingBox) -> f32 {
     2.0 * (size_x * size_y + size_x * size_z + size_y * size_z)
 }
 
-fn sort_by_axis(triangles: &mut [(u32, u32, u32)], vertices: &[Vertex], axis: usize) {
+fn sort_by_axis(triangles: &mut [Face], vertices: &[Vertex], axis: usize) {
     triangles.sort_unstable_by(|a, b| {
-        let a_center = (vertices[a.0 as usize].pos[axis]
-            + vertices[a.1 as usize].pos[axis]
-            + vertices[a.2 as usize].pos[axis])
+        let a_center = (vertices[a.vert.x as usize].pos[axis]
+            + vertices[a.vert.y as usize].pos[axis]
+            + vertices[a.vert.z as usize].pos[axis])
             / 3.0;
-        let b_center = (vertices[b.0 as usize].pos[axis]
-            + vertices[b.1 as usize].pos[axis]
-            + vertices[b.2 as usize].pos[axis])
+        let b_center = (vertices[b.vert.x as usize].pos[axis]
+            + vertices[b.vert.y as usize].pos[axis]
+            + vertices[b.vert.z as usize].pos[axis])
             / 3.0;
         a_center.partial_cmp(&b_center).unwrap()
     });
 }
 
-pub fn find_bounding_box(triangles: &[(u32, u32, u32)], vertices: &[Vertex]) -> BoundingBox {
+pub fn find_bounding_box(triangles: &[Face], vertices: &[Vertex]) -> BoundingBox {
     let mut min = Vec3::new(f32::MAX, f32::MAX, f32::MAX);
     let mut max = Vec3::new(f32::MIN, f32::MIN, f32::MIN);
 
     for triangle in triangles {
-        let v1 = vertices[triangle.0 as usize].pos;
-        let v2 = vertices[triangle.1 as usize].pos;
-        let v3 = vertices[triangle.2 as usize].pos;
+        let v1 = vertices[triangle.vert.x as usize].pos;
+        let v2 = vertices[triangle.vert.y as usize].pos;
+        let v3 = vertices[triangle.vert.z as usize].pos;
         let triangle_min = v1.min(v2).min(v3);
         let triangle_max = v1.max(v2).max(v3);
         min = min.min(triangle_min);

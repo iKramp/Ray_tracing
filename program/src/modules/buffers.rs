@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::modules::buffers;
+
 //COMMON_BUFFERS
 pub const VERT_BUFFER: &str = "vertex_buffer";
 pub const TRI_BUFFER: &str = "triangle_buffer";
@@ -8,6 +10,8 @@ pub const OBJ_BUFFER: &str = "object_buffer";
 pub const INSTANCE_BUFFER: &str = "instance_buffer";
 pub const DEBUG_POINTS_BUFFER: &str = "debug_points_buffer";
 pub const RAY_STATE_BUFFER: &str = "ray_state_buffer";
+pub const NORMAL_BUFFER: &str = "normal_buffer";
+pub const UV_BUFFER: &str = "uv_buffer";
 
 #[derive(Debug)]
 pub struct Buffer {
@@ -47,6 +51,25 @@ pub struct BufferHolder {
 impl BufferHolder {
     pub fn new() -> Self {
         BufferHolder { buffers: HashMap::new(), changed: false }
+    }
+
+    pub fn print(&self) {
+        for buffer in self.buffers.iter() {
+            println!("Buffer {}: {} elements, {} bytes", buffer.0, buffer.1.num_elements, buffer.1.data.len());
+            //print elements if less than 250
+            if buffer.1.num_elements == 12 {
+                let elem_size = buffer.1.data.len() / buffer.1.num_elements;
+                for i in 0..buffer.1.num_elements {
+                    let start = i * elem_size;
+                    let end = start + elem_size;
+                    let elem = &buffer.1.data[start..end];
+                    print!("{:?}, ", elem);
+                }
+                println!();
+            } else {
+                println!("Too many elements to display");
+            }
+        }
     }
 
     pub fn insert<T>(&mut self, name: &str, data: Vec<T>) {

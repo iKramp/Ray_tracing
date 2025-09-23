@@ -2,7 +2,7 @@ use crate::modules::is_inf;
 
 //use super::material::*;
 use super::trace::*;
-use shared::{glam::Vec3, Bvh, Vertex};
+use shared::{glam::Vec3, Bvh, Face, Vertex};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
@@ -42,7 +42,7 @@ impl HitRecord {
 
 pub struct Mesh<'a> {
     pub verts: &'a [Vertex],
-    pub tris: &'a [(u32, u32, u32)],
+    pub tris: &'a [Face],
     pub material_id: u32,
     pub bvh_buffer: &'a [Bvh],
     pub bvh_root: u32,
@@ -56,10 +56,10 @@ impl Mesh<'_> {
         t_clamp: (f32, f32),
         backface_cull: bool,
     ) -> f32 {
-        let triangle = self.tris[i as usize];
-        let p0 = &self.verts[triangle.0 as usize];
-        let p1 = &self.verts[triangle.1 as usize];
-        let p2 = &self.verts[triangle.2 as usize];
+        let triangle = &self.tris[i as usize];
+        let p0 = &self.verts[triangle.vert.x as usize];
+        let p1 = &self.verts[triangle.vert.y as usize];
+        let p2 = &self.verts[triangle.vert.z as usize];
 
         triangle_ray_intersect(p0.pos, p1.pos, p2.pos, ray, t_clamp, backface_cull)
     }

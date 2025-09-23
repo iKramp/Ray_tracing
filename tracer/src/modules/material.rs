@@ -6,7 +6,7 @@ use crate::modules::trace::Ray;
 //use image::GenericImageView;
 use super::rand_float;
 use shared::acos_approx;
-use shared::glam::Vec3;
+use shared::glam::{Vec2, Vec3};
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 
@@ -62,7 +62,7 @@ pub trait Material {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn;
@@ -166,7 +166,7 @@ impl Material for GenericMaterial {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
@@ -276,6 +276,15 @@ pub struct NormalMaterial {}
 
 impl NormalMaterial {
     fn get_next_ray_dir(&self, seed: &mut u32, ray: Ray, normal: Vec3) -> RayReturn {
+        //check if backface
+        if ray.orientation.dot(normal) > 0.0 {
+            return RayReturn {
+                state: RayReturnState::Ray,
+                direction: ray.orientation,
+            };
+        }
+
+
         RayReturn {
             state: RayReturnState::Ray,
             direction: diffuse_ray_direction(seed, normal),
@@ -319,12 +328,12 @@ impl Material for NormalMaterial {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
         let next_ray_return = self.get_next_ray_dir(seed, in_ray, normal);
-        let next_color = self.get_color(curr_color, normal, uv, in_ray.orientation);
+        let next_color = self.get_color(curr_color, normal, (uv.x, uv.y), in_ray.orientation);
 
         MaterialReturn {
             ray_return_state: next_ray_return.state,
@@ -368,7 +377,7 @@ impl EmmissiveMaterial {
         }
     }
 
-    fn get_stop_color(&self, normal: Vec3, _uv: (f32, f32), ray_dir: Vec3) -> Vec3 {
+    fn get_stop_color(&self, normal: Vec3, _uv: Vec2, ray_dir: Vec3) -> Vec3 {
         let ray_reversed = -ray_dir.normalize();
 
         let dot_product = ray_reversed.dot(normal).abs(); //abs for weird geometries that have gaps
@@ -384,7 +393,7 @@ impl Material for EmmissiveMaterial {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
@@ -447,7 +456,7 @@ impl RefractiveMaterial {
         &self,
         next_ray_color: Vec3,
         _normal: Vec3,
-        _uv: (f32, f32),
+        _uv: Vec2,
         _ray_dir: Vec3,
     ) -> Vec3 {
         next_ray_color
@@ -480,7 +489,7 @@ impl Material for RefractiveMaterial {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
@@ -502,8 +511,8 @@ impl UVMaterial {
         Self {}
     }
 
-    fn get_stop_color(&self, _normal: Vec3, uv: (f32, f32), _ray_dir: Vec3) -> Vec3 {
-        Vec3::new(uv.0, uv.1, 0.0)
+    fn get_stop_color(&self, _normal: Vec3, uv: Vec2, _ray_dir: Vec3) -> Vec3 {
+        Vec3::new(uv.x, uv.y, 0.0)
     }
 
     fn get_next_ray_dir(&self, _seed: &mut u32, _ray: Ray, _normal: Vec3) -> RayReturn {
@@ -520,7 +529,7 @@ impl Material for UVMaterial {
         curr_color: Vec3,
         in_ray: Ray,
         normal: Vec3,
-        uv: (f32, f32),
+        uv: Vec2,
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {

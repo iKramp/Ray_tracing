@@ -6,10 +6,13 @@ use super::hit::*;
 use super::material::*;
 use super::rand_float;
 use super::ObjectInfo;
+use shared::glam::Vec2;
 use shared::glam::Vec3;
 use shared::glam::Vec4;
 use shared::BoundingBox;
 use shared::CamData;
+use shared::Vec2Aligned;
+use shared::Vec3Aligned;
 use shared::Vertex;
 //use crate::Resources;
 use core::f32::consts::PI;
@@ -57,7 +60,7 @@ pub fn get_color(
     data: &CamData,
     scene_info: &shared::SceneInfo,
     objects: &ObjectInfo,
-    debug_points_array: &mut [Vertex],
+    debug_points_array: &mut [Vec3Aligned],
 ) -> (Vec3, Ray, RayReturnState) {
     let mut iterator = 0;
     loop {
@@ -70,16 +73,16 @@ pub fn get_color(
             color /= probability;
         }
 
-
         in_ray.pos += in_ray.orientation * f32::EPSILON * 100.0;
         let ray_return = in_ray.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
 
         if data.debug_information == shared::DebugInformation::RecordPoints {
             let mut i = 1;
             loop {
-                if is_vec_3_nan(&debug_points_array[i as usize + 1].pos) {
-                    debug_points_array[i as usize] = Vertex::new(in_ray.pos);
-                    debug_points_array[i as usize + 1] = Vertex::new(in_ray.pos + in_ray.orientation * 100.0);
+                if is_vec_3_nan(&debug_points_array[i as usize + 1]) {
+                    debug_points_array[i as usize] = Vec3Aligned::new(in_ray.pos);
+                    debug_points_array[i as usize + 1] =
+                        Vec3Aligned::new(in_ray.pos + in_ray.orientation * 100.0);
                     break;
                 }
                 i += 1;
@@ -90,7 +93,7 @@ pub fn get_color(
         match ray_return {
             RayReturnState::Killed => {
                 return (Vec3::ZERO, in_ray, ray_return);
-            },
+            }
             RayReturnState::Stop => {
                 return (color, in_ray, ray_return);
             }
@@ -101,6 +104,33 @@ pub fn get_color(
             }
         }
     }
+}
+
+fn get_normal_uv(
+    hit: Vec3,
+    triangle: (Vertex, Vertex, Vertex),
+    normals: (Vec3, Vec3, Vec3),
+    uv: (Vec2Aligned, Vec2Aligned, Vec2Aligned),
+) -> (Vec3, Vec2) {
+    let v0 = triangle.1.pos - triangle.0.pos;
+    let v1 = triangle.2.pos - triangle.0.pos;
+    let v2 = hit - triangle.0.pos;
+
+    let d00 = v0.dot(v0);
+    let d01 = v0.dot(v1);
+    let d11 = v1.dot(v1);
+    let d20 = v2.dot(v0);
+    let d21 = v2.dot(v1);
+
+    let denom = d00 * d11 - d01 * d01;
+    let v = (d11 * d20 - d01 * d21) / denom;
+    let w = (d00 * d21 - d01 * d20) / denom;
+    let u = 1.0 - v - w;
+
+    let normal =
+        (normals.0 * u + normals.1 * v + normals.2 * w).normalize();
+    let uv = *uv.0 * u + *uv.1 * v + *uv.2 * w;
+    (normal, uv)
 }
 
 #[derive(Clone, Copy)]
@@ -118,7 +148,7 @@ impl Ray {
         pos: Vec3::NAN,
         #[cfg(not(target_arch = "spirv"))]
         _padding: [0; 4],
-        
+
         orientation: Vec3::NAN,
 
         #[cfg(not(target_arch = "spirv"))]
@@ -126,8 +156,8 @@ impl Ray {
     };
 
     pub fn new(pos: Vec3, orientation: Vec3) -> Self {
-        Ray { 
-            pos, 
+        Ray {
+            pos,
             #[cfg(not(target_arch = "spirv"))]
             _padding: [0; 4],
             orientation,
@@ -181,7 +211,8 @@ impl Ray {
                 clamp,
                 &mut record,
                 i as u32,
-                get_backface_culling(i as u32),
+                // get_backface_culling(i as u32),
+                false
             );
         }
 
@@ -230,27 +261,51 @@ impl Ray {
         let instance = &objects.instance_buffer[record.instance_id as usize];
         let transform = &instance.transform;
 
-        let triangle = {
-            let tmp_tri = objects.triangle_buffer[record.triangle_id as usize];
-            let mut vert_1 = objects.vertex_buffer[tmp_tri.0 as usize];
-            let mut vert_2 = objects.vertex_buffer[tmp_tri.1 as usize];
-            let mut vert_3 = objects.vertex_buffer[tmp_tri.2 as usize];
+        let (normal, uv) = {
+            let tmp_tri = &objects.triangle_buffer[record.triangle_id as usize];
+            let mut vert_1 = objects.vertex_buffer[tmp_tri.vert.x as usize];
+            let mut vert_2 = objects.vertex_buffer[tmp_tri.vert.y as usize];
+            let mut vert_3 = objects.vertex_buffer[tmp_tri.vert.z as usize];
             vert_1.pos = transform.transform_point3(vert_1.pos);
             vert_2.pos = transform.transform_point3(vert_2.pos);
             vert_3.pos = transform.transform_point3(vert_3.pos);
-            (vert_1, vert_2, vert_3)
+
+            
+            let tmp_normals = if tmp_tri.normal.x != u32::MAX {(
+                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.x as usize]),
+                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.y as usize]),
+                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.z as usize]),
+            )} else {
+                //calculated from face
+                let edge1 = vert_2.pos - vert_1.pos;
+                let edge2 = vert_3.pos - vert_1.pos;
+                let face_normal = edge1.cross(edge2).normalize();
+                (face_normal, face_normal, face_normal)
+            };
+
+            let tmp_uv = if tmp_tri.uv.x != u32::MAX {(
+                objects.uv_buffer[tmp_tri.uv.x as usize],
+                objects.uv_buffer[tmp_tri.uv.y as usize],
+                objects.uv_buffer[tmp_tri.uv.z as usize],
+            )} else {(
+                Vec2Aligned::new(Vec2::ZERO),
+                Vec2Aligned::new(Vec2::ZERO),
+                Vec2Aligned::new(Vec2::ZERO),
+            )};
+            
+            let (normal, uv) = get_normal_uv(
+                self.pos + self.orientation * record.t,
+                (vert_1, vert_2, vert_3),
+                tmp_normals,
+                tmp_uv,
+            );
+
+
+            (normal, uv)
         };
+
         let material_id = record.instance_id as usize;
         let ray = *self;
-
-        let normal = {
-            let a = triangle.0.pos - triangle.1.pos;
-            let b = triangle.0.pos - triangle.2.pos;
-            a.cross(b).normalize()
-        };
-
-
-        let uv = (0.0, 0.0);
 
         let mat_return = if material_id == 0 {
             MATERIAL_0.bxdf(*color, ray, normal, uv, record.t, seed)
@@ -268,10 +323,12 @@ impl Ray {
             //debug normal, hit point, triangle, color
             println!(
                 "Hit triangle: {:?}, normal: {:?}, at point: {:?}, t: {}",
-                record.triangle_id, normal, ray.pos + ray.orientation * record.t, record.t
+                record.triangle_id,
+                normal,
+                ray.pos + ray.orientation * record.t,
+                record.t
             );
             println!("Color after hit: {color:?}");
-            
         }
 
         mat_return.ray_return_state

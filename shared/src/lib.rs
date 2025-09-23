@@ -9,6 +9,7 @@ use glam::{vec3, Vec3};
 
 pub use spirv_std::glam;
 
+use spirv_std::glam::{UVec2, UVec3, Vec2};
 // Note: This cfg is incorrect on its surface, it really should be "are we compiling with std", but
 // we tie #[no_std] above to the same condition, so it's fine.
 #[cfg(target_arch = "spirv")]
@@ -74,7 +75,7 @@ pub struct CamData {
     pub frame: u32,
     pub debug_number: u32,
     pub debug_information: DebugInformation,
-    pub debug_point_color: Vertex,
+    pub debug_point_color: Vec3Aligned,
     pub frames_without_move: f32,
     pub random_seed: u32,
 }
@@ -112,6 +113,20 @@ impl Sphere {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub struct Face {
+    pub vert: UVec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub _padding_1: [u8; 4],
+    pub normal: UVec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub _padding_2: [u8; 4],
+    pub uv: UVec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub _padding_3: [u8; 4],
+}
+
 #[derive(Debug, Default, Copy)]
 #[repr(C, align(16))]
 pub struct Vertex {
@@ -136,8 +151,9 @@ impl Vertex {
         }
     }
 }
-
+    
 impl Clone for Vertex {
+    #[allow(clippy::non_canonical_clone_impl)] //because spirv
     fn clone(&self) -> Self {
         Self::new(self.pos)
     }
@@ -146,6 +162,51 @@ impl Clone for Vertex {
 impl PartialEq for Vertex {
     fn eq(&self, other: &Self) -> bool {
         self.pos == other.pos
+    }
+}
+
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[repr(align(16))]
+pub struct Vec3Aligned(pub Vec3);
+
+impl Vec3Aligned {
+    pub fn new(v: Vec3) -> Self {
+        Self(v)
+    }
+}
+
+impl core::ops::Deref for Vec3Aligned {
+    type Target = Vec3;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl core::ops::DerefMut for Vec3Aligned {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[repr(align(16))]
+pub struct Vec2Aligned(pub Vec2);
+
+impl Vec2Aligned {
+    pub fn new(v: Vec2) -> Self {
+        Self(v)
+    }
+}
+
+impl core::ops::Deref for Vec2Aligned {
+    type Target = Vec2;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+impl core::ops::DerefMut for Vec2Aligned {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 
