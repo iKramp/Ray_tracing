@@ -10,9 +10,10 @@ use shared::glam::Vec3;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
 
+#[derive(PartialEq, Eq, Clone, Copy, Debug)]
 pub enum RayReturnState {
-    Absorb, //return color 0, 0, 0
-    Stop,   //don't trace forward, but still color the thing
+    Killed,
+    Stop,
     Ray,
 }
 
@@ -110,10 +111,7 @@ impl GenericMaterial {
         //color doesn't change
         MaterialReturn {
             ray_return_state: RayReturnState::Ray,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: new_ray,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, new_ray),
             next_color: curr_color,
         }
     }
@@ -130,10 +128,7 @@ impl GenericMaterial {
 
         MaterialReturn {
             ray_return_state: RayReturnState::Ray,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: new_ray,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, new_ray),
             next_color: curr_color * self.color,
         }
     }
@@ -159,10 +154,7 @@ impl GenericMaterial {
 
         MaterialReturn {
             ray_return_state: RayReturnState::Ray,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray_perfect,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_perfect),
             next_color: curr_color,
         }
     }
@@ -336,10 +328,7 @@ impl Material for NormalMaterial {
 
         MaterialReturn {
             ray_return_state: next_ray_return.state,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray_return.direction,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_return.direction),
             next_color,
         }
     }
@@ -403,10 +392,7 @@ impl Material for EmmissiveMaterial {
         let next_color = self.get_stop_color(normal, uv, in_ray.orientation);
         MaterialReturn {
             ray_return_state: next_ray_return.state,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray_return.direction,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_return.direction),
             next_color: curr_color * next_color,
         }
     }
@@ -503,10 +489,7 @@ impl Material for RefractiveMaterial {
 
         MaterialReturn {
             ray_return_state: next_ray_return.state,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray_return.direction,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_return.direction),
             next_color,
         }
     }
@@ -546,10 +529,7 @@ impl Material for UVMaterial {
 
         MaterialReturn {
             ray_return_state: next_ray_return.state,
-            new_ray: Ray {
-                pos: in_ray.pos + in_ray.orientation * t,
-                orientation: next_ray_return.direction,
-            },
+            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_return.direction),
             next_color: curr_color * next_color,
         }
     }

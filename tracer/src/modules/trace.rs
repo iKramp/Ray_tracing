@@ -1,5 +1,7 @@
 #![allow(unexpected_cfgs)]
 
+use crate::modules::is_vec_3_nan;
+
 use super::hit::*;
 use super::material::*;
 use super::rand_float;
@@ -49,59 +51,89 @@ pub fn vector_angle(lhs: Vec4, rhs: Vec4) -> f32 {
 }
 
 pub fn get_color(
-    (pix_x, pix_y): (usize, usize),
+    mut in_ray: Ray,
     mut rng_seed: u32,
+    mut color: Vec3,
     data: &CamData,
     scene_info: &shared::SceneInfo,
     objects: &ObjectInfo,
     debug_points_array: &mut [Vertex],
-) -> Vec3 {
-    let mut color = Vec3::new(1.0, 1.0, 1.0);
-
-    let mut vec = claculate_vec_dir_from_cam(
-        data,
-        (
-            pix_x as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
-            pix_y as f32 + rand_float(&mut rng_seed, (0.0, 1.0)),
-        ),
-    );
-    vec.normalize();
-
-    if data.debug_information == shared::DebugInformation::RecordPoints {
-        debug_points_array[0] = Vertex::new(vec.pos);
-        debug_points_array[1] = Vertex::new(vec.pos + vec.orientation * 100.0);
-    }
-
-    for i in 0..data.depth {
-        //depth
-        vec.pos += vec.orientation * f32::EPSILON * 100.0;
-        let ray_return = vec.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
-
-        if data.debug_information == shared::DebugInformation::RecordPoints {
-            debug_points_array[i as usize + 1] = Vertex::new(vec.pos);
-            debug_points_array[i as usize + 2] = Vertex::new(vec.pos + vec.orientation * 100.0);
+) -> (Vec3, Ray, RayReturnState) {
+    let mut iterator = 0;
+    loop {
+        let luminance = color.x.max(color.y).max(color.z);
+        let probability = (0.5 + luminance / 2.0).clamp(0.0, 1.0);
+        let rand_val = rand_float(&mut rng_seed, (0.0, 1.0));
+        if rand_val > probability {
+            return (Vec3::ZERO, in_ray, RayReturnState::Stop);
+        } else {
+            color /= probability;
         }
 
+
+        in_ray.pos += in_ray.orientation * f32::EPSILON * 100.0;
+        let ray_return = in_ray.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
+
+        if data.debug_information == shared::DebugInformation::RecordPoints {
+            let mut i = 1;
+            loop {
+                if is_vec_3_nan(&debug_points_array[i as usize + 1].pos) {
+                    debug_points_array[i as usize] = Vertex::new(in_ray.pos);
+                    debug_points_array[i as usize + 1] = Vertex::new(in_ray.pos + in_ray.orientation * 100.0);
+                    break;
+                }
+                i += 1;
+            }
+        }
+        iterator += 1;
+
         match ray_return {
-            RayReturnState::Ray => {}
-            _ => {
-                return color;
+            RayReturnState::Killed => {
+                return (Vec3::ZERO, in_ray, ray_return);
+            },
+            RayReturnState::Stop => {
+                return (color, in_ray, ray_return);
+            }
+            RayReturnState::Ray => {
+                if iterator > data.depth {
+                    return (color, in_ray, RayReturnState::Ray);
+                }
             }
         }
     }
-    //never finished bouncing
-    Vec3::default()
 }
 
 #[derive(Clone, Copy)]
 pub struct Ray {
     pub pos: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    _padding: [u8; 4],
     pub orientation: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    _padding_2: [u8; 4],
 }
 
 impl Ray {
+    pub const NAN: Ray = Ray {
+        pos: Vec3::NAN,
+        #[cfg(not(target_arch = "spirv"))]
+        _padding: [0; 4],
+        
+        orientation: Vec3::NAN,
+
+        #[cfg(not(target_arch = "spirv"))]
+        _padding_2: [0; 4],
+    };
+
     pub fn new(pos: Vec3, orientation: Vec3) -> Self {
-        Ray { pos, orientation }
+        Ray { 
+            pos, 
+            #[cfg(not(target_arch = "spirv"))]
+            _padding: [0; 4],
+            orientation,
+            #[cfg(not(target_arch = "spirv"))]
+            _padding_2: [0; 4],
+        }
     }
 
     pub fn normalize(&mut self) {
@@ -135,7 +167,12 @@ impl Ray {
             let inverse_matrix = instance.transform.inverse();
             let ray = Ray {
                 pos: inverse_matrix.transform_point3(self.pos),
+                #[cfg(not(target_arch = "spirv"))]
+                _padding: [0; 4],
+
                 orientation: inverse_matrix.transform_vector3(self.orientation),
+                #[cfg(not(target_arch = "spirv"))]
+                _padding_2: [0; 4],
             };
 
             let clamp = (f32::EPSILON, record.t);

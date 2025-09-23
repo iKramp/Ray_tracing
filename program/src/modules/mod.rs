@@ -7,6 +7,7 @@ use nalgebra_glm::Vec4;
 use shared::{glam::Affine3A, *};
 use buffers::*;
 pub use point_recorder::record_points;
+use tracer::modules::trace::Ray;
 
 use crate::{modules::buffers::BufferHolder, HEIGHT, WIDTH};
 
@@ -56,11 +57,13 @@ impl SceneBuilder {
         };
 
         builder.buffers.insert("acc_image", vec![Vec4::zeros(); WIDTH * HEIGHT]);
+        builder.buffers.insert("acc_per_pixel", vec![Vec4::zeros(); WIDTH * HEIGHT]);
         builder.buffers.insert(VERT_BUFFER, Vec::<Vertex>::new());
         builder.buffers.insert(TRI_BUFFER, Vec::<(u32, u32, u32)>::new());
         builder.buffers.insert(BVH_BUFFER, Vec::<Bvh>::new());
         builder.buffers.insert(OBJ_BUFFER, Vec::<Object>::new());
         builder.buffers.insert(INSTANCE_BUFFER, Vec::<Instance>::new());
+        builder.buffers.insert(RAY_STATE_BUFFER, vec![Ray::NAN; WIDTH * HEIGHT]);
         builder.buffers.insert(DEBUG_POINTS_BUFFER, vec![Vec3::ZERO; 2]);
         builder
     }

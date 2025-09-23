@@ -6,6 +6,8 @@
 #![feature(iter_map_windows)]
 
 use glam::{UVec3, Vec3Swizzles};
+use shared::glam::Vec3;
+use shared::glam::Vec4Swizzles;
 use shared::*;
 #[allow(unused_imports)]
 use spirv_std::glam::{vec2, vec4, Vec2, Vec4};
@@ -15,7 +17,13 @@ use spirv_std::spirv;
 #[cfg(target_arch = "spirv")]
 use spirv_std::num_traits::Float;
 use tracer::debug_points::check_points_proximity;
+use tracer::modules::get_seed;
+use tracer::modules::is_ray_nan;
 use tracer::modules::is_vec_3_nan;
+use tracer::modules::material::RayReturnState;
+use tracer::modules::rand_float;
+use tracer::modules::trace::claculate_vec_dir_from_cam;
+use tracer::modules::trace::Ray;
 use tracer::tracer_main;
 
 
@@ -34,13 +42,19 @@ pub fn render_pixel(
     ),
 
     #[spirv(storage_buffer, descriptor_set = 0, binding = 3)] acc_buffer: &mut [Vec4],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] vertex_buffer: &[Vertex],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] triangle_buffer: &[(u32, u32, u32)],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] bvh_buffer: &[Bvh],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 7)] object_buffer: &[Object],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 8)] instance_buffer: &[Instance],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 9)] debug_points_array: &mut [Vertex],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 4)] pixel_acc_buffer: &mut [Vec4],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 5)] vertex_buffer: &[Vertex],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 6)] triangle_buffer: &[(u32, u32, u32)],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 7)] bvh_buffer: &[Bvh],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 8)] object_buffer: &[Object],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 9)] instance_buffer: &[Instance],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 10)] ray_buffer: &mut [Ray],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 11)] debug_points_array: &mut [Vertex],
 ) {
+    if id.x >= data.canvas_width || id.y >= data.canvas_height {
+        // Out of bounds, skip processing.
+        return;
+    }
 
     let res = check_points_proximity(data, debug_points_array, id.xy());
     if !is_vec_3_nan(&res) {
@@ -48,8 +62,39 @@ pub fn render_pixel(
         return;
     }
 
-    let rendered_color = tracer_main(
-        id.xy(),
+    let mut seed = get_seed(
+        id.x,
+        id.y,
+        data.random_seed,
+    );
+    let coord_index = (id.x + id.y * data.canvas_width) as usize;
+
+    
+    if data.frames_without_move < 0.5 {
+        pixel_acc_buffer[coord_index] = vec4(1.0, 1.0, 1.0, 0.0);
+        ray_buffer[coord_index] = Ray::NAN;
+        acc_buffer[coord_index] = vec4(0.0, 0.0, 0.0, 0.0);
+    }
+
+
+    let (ray, mut curr_color) = if !is_ray_nan(&ray_buffer[coord_index]) {
+        (ray_buffer[coord_index], pixel_acc_buffer[coord_index])
+    } else {
+        let mut vec = claculate_vec_dir_from_cam(
+            data,
+            (
+                id.x as f32 + rand_float(&mut seed, (0.0, 1.0)),
+                id.y as f32 + rand_float(&mut seed, (0.0, 1.0)),
+            ),
+        );
+        vec.normalize();
+        (vec, vec4(1.0, 1.0, 1.0, 0.0))
+    };
+
+    let mut ret = tracer_main(
+        ray,
+        seed,
+        curr_color.xyz(),
         data,
         scene_info,
         vertex_buffer,
@@ -60,41 +105,46 @@ pub fn render_pixel(
         debug_points_array,
     );
 
-    let nan =
-        rendered_color.x > 1000.0 || rendered_color.y > 1000.0 || rendered_color.z > 1000.0;
+    if ret.0.x < f32::EPSILON * 10.0 || ret.0.y < f32::EPSILON * 10.0 || ret.0.z < f32::EPSILON * 10.0 {
+        ret.2 = RayReturnState::Stop;
+        ret.0 = Vec3::ZERO;
+    }
 
     let rendered_color = Vec4::new(
-        rendered_color.x,
-        rendered_color.y,
-        rendered_color.z,
+        ret.0.x,
+        ret.0.y,
+        ret.0.z,
         1.0,
     );
-
-    let new_color;
-    let coord_index = id.x + id.y * data.canvas_width;
-    let prev_color = acc_buffer[coord_index as usize];
-
-    if data.frames_without_move < 0.5 {
-        acc_buffer[coord_index as usize] = rendered_color;
-        new_color = rendered_color;
-    } else {
-        let acc_color = if nan {
-            Vec4::new(0.0, 1000000.0, 0.0, 1.0)
-        } else {
-            prev_color + rendered_color
-        };
-
-        acc_buffer[coord_index as usize] = acc_color;
-
-        new_color = acc_color / (data.frames_without_move + 1.0);
+    curr_color = rendered_color;
+    pixel_acc_buffer[coord_index] = curr_color;
+    
+    match ret.2 {
+        RayReturnState::Killed => {
+            ray_buffer[coord_index] = Ray::NAN;
+            return;
+        },
+        RayReturnState::Ray => {
+            ray_buffer[coord_index] = ret.1;
+            return;
+        },
+        RayReturnState::Stop => {
+            ray_buffer[coord_index] = Ray::NAN;
+        },
     }
+
+    let acc_color = acc_buffer[coord_index] + curr_color;
+    acc_buffer[coord_index] = acc_color;
+
+    let new_color = acc_color.xyz()
+        / acc_color.w;
 
     //gamma correct
     let present_color = Vec4::new(
         new_color.x.powf(1.0 / 2.2),
         new_color.y.powf(1.0 / 2.2),
         new_color.z.powf(1.0 / 2.2),
-        1.0,
+        1.0
     );
 
     unsafe { res_output.write(id.xy(), present_color) }

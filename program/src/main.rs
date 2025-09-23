@@ -49,9 +49,9 @@ pub fn main() {
         glam::Vec3::new(0.0, 4.9, 0.0),
     );
     let transform_matrix_dragon = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(20.0, 20.0, 20.0),
-        glam::Quat::from_rotation_x(f32::consts::PI),
-        glam::Vec3::new(2.0, 2.0, 0.0),
+        glam::Vec3::new(15.0, 15.0, 15.0),
+        glam::Quat::from_rotation_x(f32::consts::PI) * glam::Quat::from_rotation_y(f32::consts::PI / 2.0),
+        glam::Vec3::new(0.0, 2.0, 0.0),
     );
     let transform_matrix_3 = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(10.0, 10.0, 10.0),
@@ -60,15 +60,9 @@ pub fn main() {
     );
 
     let (scene_info, mut buffers) = SceneBuilder::new()
-        // .add_obj_file(include_str!("./resources/dragon_8k.obj"), &[transform_matrix_dragon])
-        .add_obj_file(
-            include_str!("./resources/default_cube.obj"),
-            &[transform_matrix_default_cube],
-        )
-        .add_obj_file(
-            include_str!("./resources/cornel_box.obj"),
-            &[transform_matrix_3],
-        )
+        .add_obj_file(include_str!("./resources/dragon_8k.obj"), &[transform_matrix_dragon])
+        // .add_obj_file(include_str!("./resources/default_cube.obj"), &[transform_matrix_default_cube])
+        .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
         .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
         .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
         .build();

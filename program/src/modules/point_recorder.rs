@@ -1,4 +1,5 @@
 use shared::{glam::Vec3, SceneInfo, Vertex};
+use tracer::modules::is_vec_3_nan;
 
 use crate::modules::buffers::{BufferHolder, BVH_BUFFER, DEBUG_POINTS_BUFFER, INSTANCE_BUFFER, OBJ_BUFFER, TRI_BUFFER, VERT_BUFFER};
 
@@ -58,8 +59,8 @@ pub fn record_points(buffers: &mut BufferHolder, coords: (u32, u32), cam_data: &
             }
             valid_points += 1;
         }
-        println!("Valid points recorded: {}", valid_points);
-        if valid_points != cam_data.depth + 2 {
+        println!("Valid points recorded: {valid_points}");
+        if !is_vec_3_nan(&color) {
             break debug_buffer;
         }
         cam_data.random_seed = cam_data.random_seed.wrapping_add(1);

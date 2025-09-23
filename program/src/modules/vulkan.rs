@@ -19,7 +19,6 @@ use std::vec;
 
 use anyhow::{anyhow, Result};
 use log::*;
-use nalgebra_glm::UVec2;
 use shared::glam::{self, Affine3A, Quat, Vec3};
 use std::ptr::copy_nonoverlapping as memcpy;
 use thiserror::Error;

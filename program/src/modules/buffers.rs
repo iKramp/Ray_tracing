@@ -7,6 +7,7 @@ pub const BVH_BUFFER: &str = "bvh_buffer";
 pub const OBJ_BUFFER: &str = "object_buffer";
 pub const INSTANCE_BUFFER: &str = "instance_buffer";
 pub const DEBUG_POINTS_BUFFER: &str = "debug_points_buffer";
+pub const RAY_STATE_BUFFER: &str = "ray_state_buffer";
 
 #[derive(Debug)]
 pub struct Buffer {
