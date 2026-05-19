@@ -107,6 +107,8 @@ impl SceneBuilder {
         builder.buffers.insert(INSTANCE_BUFFER, Vec::<Instance>::new());
         builder.buffers.insert(RAY_STATE_BUFFER, vec![Ray::NAN; WIDTH * HEIGHT]);
         builder.buffers.insert(DEBUG_POINTS_BUFFER, vec![Vec3Aligned::new(Vec3::ZERO); 2]);
+        builder.buffers.insert(IMAGE_INFO_BUFFER, Vec::<ImageInfo>::new());
+        builder.buffers.insert(IMAGE_DATA_BUFFER, Vec::<u8>::new());
         builder
     }
 
@@ -188,6 +190,8 @@ impl SceneBuilder {
             OBJ_BUFFER,
             &[Object {
                 bvh_root: bvh_offset,
+                normal_image_index: u32::MAX,
+                texture_image_index: u32::MAX,
             }],
         );
 
@@ -203,6 +207,19 @@ impl SceneBuilder {
         );
 
         self
+    }
+
+    pub fn add_image(&mut self, size_x: u32, size_y: u32, data: Vec<u8>) -> u32 {
+        let image_index = self.buffers.get_length_unchecked(IMAGE_INFO_BUFFER) as u32;
+        let data_index = self.buffers.get(IMAGE_DATA_BUFFER).unwrap().data.len() as u32;
+        let image_info = ImageInfo {
+            data_index,
+            width: size_x,
+            height: size_y,
+        };
+        self.buffers.append(IMAGE_INFO_BUFFER, &[image_info]);
+        self.buffers.append(IMAGE_DATA_BUFFER, &data);
+        image_index
     }
 
     pub fn sun_orientation(mut self, orientation: Vec3) -> Self {

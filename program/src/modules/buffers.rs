@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-
-use crate::modules::buffers;
+use std::fs::File;
+use std::io::Write;
 
 //COMMON_BUFFERS
 pub const VERT_BUFFER: &str = "vertex_buffer";
@@ -12,6 +12,8 @@ pub const DEBUG_POINTS_BUFFER: &str = "debug_points_buffer";
 pub const RAY_STATE_BUFFER: &str = "ray_state_buffer";
 pub const NORMAL_BUFFER: &str = "normal_buffer";
 pub const UV_BUFFER: &str = "uv_buffer";
+pub const IMAGE_INFO_BUFFER: &str = "image_info_buffer";
+pub const IMAGE_DATA_BUFFER: &str = "image_data_buffer";
 
 #[derive(Debug)]
 pub struct Buffer {
@@ -32,13 +34,17 @@ impl Buffer {
             Vec::from_raw_parts(byte_ptr as *mut u8, byte_len, byte_capacity)
         };
         let alignment = std::mem::align_of::<T>();
-        Buffer { data, num_elements, index, alignment }
+        Buffer {
+            data,
+            num_elements,
+            index,
+            alignment,
+        }
     }
 
     pub fn append(&mut self, other: &[u8], other_len: usize) {
         self.data.extend_from_slice(other);
         self.num_elements += other_len;
-        
     }
 }
 
@@ -50,12 +56,23 @@ pub struct BufferHolder {
 
 impl BufferHolder {
     pub fn new() -> Self {
-        BufferHolder { buffers: HashMap::new(), changed: false }
+        BufferHolder {
+            buffers: HashMap::new(),
+            changed: false,
+        }
     }
 
     pub fn print(&self) {
-        for buffer in self.buffers.iter() {
-            println!("Buffer {}: {} elements, {} bytes", buffer.0, buffer.1.num_elements, buffer.1.data.len());
+        let mut a = self.buffers.iter().collect::<Vec<_>>();
+        a.sort_by_key(|buffer| buffer.1.index);
+        for buffer in a {
+            println!(
+                "Buffer {} (id {}): {} elements, {} bytes",
+                buffer.0,
+                buffer.1.index,
+                buffer.1.num_elements,
+                buffer.1.data.len()
+            );
             //print elements if less than 250
             if buffer.1.num_elements == 12 {
                 let elem_size = buffer.1.data.len() / buffer.1.num_elements;
@@ -69,6 +86,35 @@ impl BufferHolder {
             } else {
                 println!("Too many elements to display");
             }
+        }
+    }
+
+    pub fn save_buffers(&self, path: &str) {
+        let mut file = File::create(path).unwrap();
+        let buffers = self.get_all_buffers();
+        let mut offset = 0;
+        for buffer in buffers.skip(2).take(7) {
+            //vert, norm, uv, tri, bvh, obj, instance
+            println!(
+                "Saving buffer (id {}) with {} bytes",
+                buffer.index,
+                buffer.data.len()
+            );
+            file.write_all(buffer.data.len().to_le_bytes()[0..4].as_ref())
+                .unwrap();
+            offset += 4;
+            //add padding to align to 16 bytes
+            let padding = (16 - (offset % 16)) % 16;
+            file.write_all(&vec![0u8; padding]).unwrap();
+            offset += padding;
+
+            file.write_all(&buffer.data).unwrap();
+            offset += buffer.data.len();
+
+            //align to 4 bytes for next buf size
+            let padding = (4 - (offset % 4)) % 4;
+            file.write_all(&vec![0u8; padding]).unwrap();
+            offset += padding;
         }
     }
 
@@ -104,10 +150,7 @@ impl BufferHolder {
     pub fn append<T: Clone>(&mut self, name: &str, data: &[T]) {
         if let Some(buffer) = self.buffers.get_mut(name) {
             let byte_data = unsafe {
-                std::slice::from_raw_parts(
-                    data.as_ptr() as *const u8,
-                    std::mem::size_of_val(data)
-                )
+                std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
             };
             buffer.append(byte_data, data.len());
             self.changed = true;
@@ -136,4 +179,3 @@ impl Default for BufferHolder {
         Self::new()
     }
 }
-

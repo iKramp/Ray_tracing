@@ -21,14 +21,23 @@ use spirv_std::num_traits::Float;
 
 // const MATERIAL_0: RefractiveMaterial = RefractiveMaterial::new(Vec3::new(0.9, 0.9, 0.9), 1.33);
 const MATERIAL_0: GenericMaterial = GenericMaterial {
-    color: Vec3::new(1.0, 1.0, 1.0),
+    color_surface: Vec3::new(1.0, 1.0, 1.0),
+    color_emissive: Vec3::ZERO,
     specular: 0.0,
     specular_roughness: 0.0,
     roughness: 0.0,
     ior: 1.5,
 };
 const MATERIAL_1: NormalMaterial = NormalMaterial {};
-const MATERIAL_2: EmmissiveMaterial = EmmissiveMaterial::new(Vec3::new(15.0, 15.0, 15.0));
+// const MATERIAL_2: EmmissiveMaterial = EmmissiveMaterial::new(Vec3::new(15.0, 15.0, 15.0));
+const MATERIAL_2: GenericMaterial = GenericMaterial {
+    color_surface: Vec3::new(0.0, 0.0, 0.0),
+    color_emissive: Vec3::new(15.0, 15.0, 15.0),
+    specular: 0.0,
+    specular_roughness: 0.0,
+    roughness: 0.0,
+    ior: 0.0, //no refraction
+};
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
     //fov is counted in degrees in the horizontal direction
@@ -263,12 +272,12 @@ impl Ray {
 
         let (normal, uv) = {
             let tmp_tri = &objects.triangle_buffer[record.triangle_id as usize];
-            let mut vert_1 = objects.vertex_buffer[tmp_tri.vert.x as usize];
-            let mut vert_2 = objects.vertex_buffer[tmp_tri.vert.y as usize];
-            let mut vert_3 = objects.vertex_buffer[tmp_tri.vert.z as usize];
+            let mut vert_0 = objects.vertex_buffer[tmp_tri.vert.x as usize];
+            let mut vert_1 = objects.vertex_buffer[tmp_tri.vert.y as usize];
+            let mut vert_2 = objects.vertex_buffer[tmp_tri.vert.z as usize];
+            vert_0.pos = transform.transform_point3(vert_0.pos);
             vert_1.pos = transform.transform_point3(vert_1.pos);
             vert_2.pos = transform.transform_point3(vert_2.pos);
-            vert_3.pos = transform.transform_point3(vert_3.pos);
 
             
             let tmp_normals = if tmp_tri.normal.x != u32::MAX {(
@@ -277,8 +286,8 @@ impl Ray {
                 transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.z as usize]),
             )} else {
                 //calculated from face
-                let edge1 = vert_2.pos - vert_1.pos;
-                let edge2 = vert_3.pos - vert_1.pos;
+                let edge1 = vert_1.pos - vert_0.pos;
+                let edge2 = vert_2.pos - vert_0.pos;
                 let face_normal = edge1.cross(edge2).normalize();
                 (face_normal, face_normal, face_normal)
             };
@@ -295,7 +304,7 @@ impl Ray {
             
             let (normal, uv) = get_normal_uv(
                 self.pos + self.orientation * record.t,
-                (vert_1, vert_2, vert_3),
+                (vert_0, vert_1, vert_2),
                 tmp_normals,
                 tmp_uv,
             );

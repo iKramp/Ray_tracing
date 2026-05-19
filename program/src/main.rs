@@ -20,6 +20,9 @@ const HEIGHT: usize = 360 * 2;
 pub fn main() {
     pretty_env_logger::init();
 
+    let args: Vec<String> = std::env::args().collect();
+    let save_buffers = args.iter().any(|arg| arg == "--save-buffers");
+
     let cam_data = CamData {
         transform: glam::Affine3A::from_scale_rotation_translation(
             Vec3::ONE,
@@ -39,9 +42,9 @@ pub fn main() {
     };
 
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(0.6 * 4.0, 1.01 * 2.0, 0.6 * 4.0),
-        glam::Quat::from_rotation_x(f32::consts::PI),
-        glam::Vec3::new(0.0, -9.8, 0.0),
+        glam::Vec3::new(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0),
+        glam::Quat::IDENTITY,
+        glam::Vec3::new(0.0, 0.0, 0.0),
     );
     let transform_matrix_default_cube = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(3.0, 3.0, 3.0),
@@ -50,7 +53,8 @@ pub fn main() {
     );
     let transform_matrix_dragon = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(15.0, 15.0, 15.0),
-        glam::Quat::from_rotation_x(f32::consts::PI) * glam::Quat::from_rotation_y(f32::consts::PI / 2.0),
+        glam::Quat::from_rotation_x(f32::consts::PI)
+            * glam::Quat::from_rotation_y(f32::consts::PI / 2.0),
         glam::Vec3::new(0.0, 2.0, 0.0),
     );
     let transform_matrix_3 = glam::Affine3A::from_scale_rotation_translation(
@@ -61,11 +65,18 @@ pub fn main() {
 
     let (scene_info, mut buffers) = SceneBuilder::new()
         // .add_obj_file(include_str!("./resources/dragon_8k.obj"), &[transform_matrix_dragon])
-        .add_obj_file(include_str!("./resources/smooth_sphere1.obj"), &[transform_matrix_default_cube])
-        .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
+        // .add_obj_file(include_str!("./resources/smooth_sphere1.obj"), &[transform_matrix_default_cube])
+        // .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
+        // .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix_default_cube])
         .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
         .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
         .build();
+
+    if save_buffers {
+        buffers.print();
+        buffers.save_buffers("buffers_dump.bin");
+        return;
+    }
 
     fake_points(&mut buffers, &cam_data);
 

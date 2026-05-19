@@ -52,6 +52,8 @@ pub fn render_pixel(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 11)] instance_buffer: &[Instance],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 12)] ray_buffer: &mut [Ray],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 13)] debug_points_array: &mut [Vec3Aligned],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 14)] image_info_buffer: &[ImageInfo],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 15)] image_data_buffer: &[u8],
 ) {
     if id.x >= data.canvas_width || id.y >= data.canvas_height {
         // Out of bounds, skip processing.
@@ -106,6 +108,7 @@ pub fn render_pixel(
         bvh_buffer,
         object_buffer,
         instance_buffer,
+        image_info_buffer,
         debug_points_array,
     );
 

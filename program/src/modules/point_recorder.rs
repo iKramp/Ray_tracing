@@ -2,7 +2,8 @@ use shared::{glam::Vec3, Face, SceneInfo, Vec2Aligned, Vec3Aligned, Vertex};
 use tracer::modules::is_vec_3_nan;
 
 use crate::modules::buffers::{
-    BufferHolder, BVH_BUFFER, DEBUG_POINTS_BUFFER, INSTANCE_BUFFER, NORMAL_BUFFER, OBJ_BUFFER, TRI_BUFFER, UV_BUFFER, VERT_BUFFER
+    BufferHolder, BVH_BUFFER, DEBUG_POINTS_BUFFER, INSTANCE_BUFFER, NORMAL_BUFFER, OBJ_BUFFER,
+    TRI_BUFFER, UV_BUFFER, VERT_BUFFER,
 };
 
 pub fn record_points(
@@ -70,10 +71,8 @@ pub fn record_points(
         debug_buffer.resize(cam_data.depth as usize + 5, Vec3Aligned::new(Vec3::NAN));
         let color = tracer::trace_single_ray(
             coords,
-
             cam_data,
             scene_info,
-            
             vertex_buffer,
             normal_buffer,
             uv_buffer,
@@ -81,6 +80,7 @@ pub fn record_points(
             bvh_buffer,
             object_buffer,
             instance_buffer,
+            &[],
             &mut debug_buffer,
         );
         cam_data.debug_point_color = Vec3Aligned::new(color);

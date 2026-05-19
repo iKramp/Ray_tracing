@@ -1,4 +1,4 @@
-use shared::{glam::{Affine3A, Mat3}, Bvh, Face, Instance, Object, Vec2Aligned, Vec3Aligned, Vertex};
+use shared::{glam::{Affine3A, Mat3}, Bvh, Face, ImageInfo, Instance, Object, Vec2Aligned, Vec3Aligned, Vertex};
 
 use crate::modules::trace::Ray;
 
@@ -79,4 +79,5 @@ pub struct ObjectInfo<'a> {
     pub object_buffer: &'a [Object],
     pub instance_buffer: &'a [Instance],
     pub bvh_buffer: &'a [Bvh],
+    pub image_info_buffer: &'a [ImageInfo],
 }

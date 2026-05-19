@@ -77,7 +77,7 @@ pub(crate) struct App {
     pub scene_info: SceneInfo,
     pub buffers: BufferHolder,
     pub inc_rand: bool,
-    pub dbg_ray: Option<(Affine3A, (u32, u32))>
+    pub dbg_ray: Option<(Affine3A, (u32, u32))>,
 }
 
 impl App {
@@ -152,7 +152,7 @@ impl App {
             scene_info,
             buffers,
             inc_rand: true,
-            dbg_ray: None
+            dbg_ray: None,
         })
     }
 
@@ -506,7 +506,8 @@ unsafe fn pick_physical_device(
     data: &mut AppData,
     integrated: bool,
 ) -> Result<()> {
-    for physical_device in instance.enumerate_physical_devices()? {
+    let devices = instance.enumerate_physical_devices()?;
+    for physical_device in devices {
         println!("Physical Device: {:?}", physical_device);
         let properties = instance.get_physical_device_properties(physical_device);
 

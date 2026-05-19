@@ -5,11 +5,16 @@
 #![feature(stmt_expr_attributes)]
 
 use shared::{
-    glam::{UVec2, Vec3}, Bvh, CamData, Face, Instance, Object, SceneInfo, Vec2Aligned, Vec3Aligned, Vertex
+    glam::Vec3, Bvh, CamData, Face, ImageInfo, Instance, Object, SceneInfo, Vec2Aligned,
+    Vec3Aligned, Vertex,
 };
 
 use crate::modules::{
-    get_seed, material::RayReturnState, rand_float, trace::{claculate_vec_dir_from_cam, Ray}, xor_shift, ObjectInfo
+    get_seed,
+    material::RayReturnState,
+    rand_float,
+    trace::{claculate_vec_dir_from_cam, Ray},
+    xor_shift, ObjectInfo,
 };
 pub mod debug_points;
 pub mod modules;
@@ -29,6 +34,7 @@ pub fn tracer_main(
     bvh_buffer: &[Bvh],
     object_buffer: &[Object],
     instance_buffer: &[Instance],
+    image_info_buffer: &[ImageInfo],
 
     debug_points_array: &mut [Vec3Aligned],
 ) -> (Vec3, Ray, RayReturnState) {
@@ -40,6 +46,7 @@ pub fn tracer_main(
         object_buffer,
         instance_buffer,
         bvh_buffer,
+        image_info_buffer,
     };
 
     modules::trace::get_color(
@@ -66,6 +73,7 @@ pub fn trace_single_ray(
     bvh_buffer: &[Bvh],
     object_buffer: &[Object],
     instance_buffer: &[Instance],
+    image_info_buffer: &[ImageInfo],
 
     debug_points_array: &mut [Vec3Aligned],
 ) -> Vec3 {
@@ -100,6 +108,7 @@ pub fn trace_single_ray(
             bvh_buffer,
             object_buffer,
             instance_buffer,
+            image_info_buffer,
             debug_points_array,
         );
 
@@ -111,8 +120,7 @@ pub fn trace_single_ray(
             RayReturnState::Ray => {
                 vec = res.1;
                 xor_shift(&mut seed);
-            },
+            }
         }
-
     }
 }

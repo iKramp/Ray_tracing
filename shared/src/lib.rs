@@ -1,8 +1,6 @@
 //! Ported to Rust from <https://github.com/Tw1ddle/Sky-Shader/blob/master/src/shaders/glsl/sky.fragment>
 #![allow(unexpected_cfgs)]
-
 #![cfg_attr(target_arch = "spirv", no_std, feature(lang_items))]
-
 
 use core::f32::consts::PI;
 use glam::{vec3, Vec3};
@@ -151,7 +149,7 @@ impl Vertex {
         }
     }
 }
-    
+
 impl Clone for Vertex {
     #[allow(clippy::non_canonical_clone_impl)] //because spirv
     fn clone(&self) -> Self {
@@ -164,7 +162,6 @@ impl PartialEq for Vertex {
         self.pos == other.pos
     }
 }
-
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[repr(align(16))]
@@ -230,6 +227,8 @@ impl BoundingBox {
 #[derive(Debug, Clone)]
 pub struct Object {
     pub bvh_root: u32,
+    pub normal_image_index: u32,
+    pub texture_image_index: u32,
 }
 
 #[derive(Debug, Clone)]
@@ -252,4 +251,12 @@ pub struct Bvh {
 pub enum ChildTriangleMode {
     Children = 0,
     Triangles = 1,
+}
+
+#[derive(Debug, Clone)]
+#[repr(C, align(16))]
+pub struct ImageInfo {
+    pub width: u32,
+    pub height: u32,
+    pub data_index: u32,
 }
