@@ -1245,12 +1245,13 @@ unsafe fn create_storage_buffers(
     let mut new_buffers_memory = Vec::new();
 
     let buffers = buffers.get_all_buffers();
+    let mut iteration = 0;
     buffers.for_each(|buffer| {
         let (storage_buffer, storage_buffer_memory) = create_buffer(
             instance,
             device,
             data,
-            buffer.data.len() as u64,
+            (buffer.data.len() as u64).max(16), // Ensure minimum size for alignment
             vk::BufferUsageFlags::STORAGE_BUFFER,
             vk::MemoryPropertyFlags::HOST_COHERENT | vk::MemoryPropertyFlags::HOST_VISIBLE,
         )

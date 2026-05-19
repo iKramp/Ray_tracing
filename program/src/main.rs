@@ -64,11 +64,23 @@ pub fn main() {
     );
 
     let (scene_info, mut buffers) = SceneBuilder::new()
-        // .add_obj_file(include_str!("./resources/dragon_8k.obj"), &[transform_matrix_dragon])
-        // .add_obj_file(include_str!("./resources/smooth_sphere1.obj"), &[transform_matrix_default_cube])
-        // .add_obj_file(include_str!("./resources/cornel_box.obj"), &[transform_matrix_3])
-        // .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix_default_cube])
-        .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
+        .add_obj_file(
+            include_str!("./resources/dragon_8k.obj"),
+            &[transform_matrix_dragon],
+        )
+        .add_obj_file(
+            include_str!("./resources/smooth_sphere1.obj"),
+            &[transform_matrix_default_cube],
+        )
+        .add_obj_file(
+            include_str!("./resources/cornel_box.obj"),
+            &[transform_matrix_3],
+        )
+        .add_obj_file(
+            include_str!("./resources/teapot.obj"),
+            &[transform_matrix_default_cube],
+        )
+        // .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
         .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
         .build();
 

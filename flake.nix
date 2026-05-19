@@ -33,9 +33,9 @@
         pkgs.vulkan-tools
         pkgs.wayland
         pkgs.wayland-protocols
-        pkgs.xorg.libXcursor
-        pkgs.xorg.libXrandr
-        pkgs.xorg.libXi
+        pkgs.libXcursor
+        pkgs.libXrandr
+        pkgs.libXi
         pkgs.vulkan-loader
         pkgs.libxkbcommon
         rust
