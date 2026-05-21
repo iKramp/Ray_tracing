@@ -12,6 +12,7 @@ pub const DEBUG_POINTS_BUFFER: &str = "debug_points_buffer";
 pub const RAY_STATE_BUFFER: &str = "ray_state_buffer";
 pub const NORMAL_BUFFER: &str = "normal_buffer";
 pub const UV_BUFFER: &str = "uv_buffer";
+pub const MATERIAL_BUFFER: &str = "material_buffer";
 pub const IMAGE_INFO_BUFFER: &str = "image_info_buffer";
 pub const IMAGE_DATA_BUFFER: &str = "image_data_buffer";
 

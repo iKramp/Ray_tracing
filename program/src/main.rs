@@ -36,20 +36,25 @@ pub fn main() {
         debug_number: 128,
         debug_information: DebugInformation::None,
         frame: 0,
-        frames_without_move: 0.0,
+        reset: 1,
         random_seed: 0xDEADBEEF,
         debug_point_color: Vec3Aligned::new(Vec3::ZERO),
     };
 
     let transform_matrix = glam::Affine3A::from_scale_rotation_translation(
-        glam::Vec3::new(1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0),
-        glam::Quat::IDENTITY,
-        glam::Vec3::new(0.0, 0.0, 0.0),
+        glam::Vec3::new(0.6 * 4.0, 1.01 * 2.0, 0.6 * 4.0),
+        glam::Quat::from_rotation_x(f32::consts::PI),
+        glam::Vec3::new(0.0, -9.8, 0.0),
     );
-    let transform_matrix_default_cube = glam::Affine3A::from_scale_rotation_translation(
+    let transform_matrix_left_sphere = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(3.0, 3.0, 3.0),
         glam::Quat::from_rotation_y(f32::consts::PI / 4.0),
-        glam::Vec3::new(0.0, 2.9, -5.0),
+        glam::Vec3::new(-5.0, 2.9, -5.0),
+    );
+    let transform_matrix_right_sphere = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(3.0, 3.0, 3.0),
+        glam::Quat::from_rotation_y(f32::consts::PI / 4.0),
+        glam::Vec3::new(5.0, 2.9, -5.0),
     );
     let transform_matrix_dragon = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(15.0, 15.0, 15.0),
@@ -67,20 +72,28 @@ pub fn main() {
         .add_obj_file(
             include_str!("./resources/dragon_8k.obj"),
             &[transform_matrix_dragon],
+            0,
         )
-        .add_obj_file(
-            include_str!("./resources/smooth_sphere1.obj"),
-            &[transform_matrix_default_cube],
-        )
+        // .add_obj_file(
+        //     include_str!("./resources/ico_sphere_smooth.obj"),
+        //     &[transform_matrix_left_sphere],
+        //     0,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/ico_sphere_sharp.obj"),
+        //     &[transform_matrix_right_sphere],
+        //     0,
+        // )
         .add_obj_file(
             include_str!("./resources/cornel_box.obj"),
             &[transform_matrix_3],
+            1,
         )
         .add_obj_file(
             include_str!("./resources/teapot.obj"),
-            &[transform_matrix_default_cube],
+            &[transform_matrix],
+            2,
         )
-        // .add_obj_file(include_str!("./resources/teapot.obj"), &[transform_matrix])
         .sun_orientation(Vec3::new(1.0, -1.0, 1.0))
         .build();
 
@@ -102,7 +115,7 @@ pub fn main() {
 
     let mut vulkan_app =
         unsafe { modules::vulkan::App::create(&window, cam_data, scene_info, buffers).unwrap() };
-    vulkan_app.cam_data.frames_without_move = 0.0;
+    vulkan_app.cam_data.reset = 1;
 
     let mut winit_app = WinitApp {
         locked: false,
@@ -137,7 +150,7 @@ impl ApplicationHandler for WinitApp {
             static mut PREV_CAMERA_TRANSFORM: glam::Affine3A = glam::Affine3A::IDENTITY;
             let current_camera_transform = app.cam_data.transform;
             if current_camera_transform != unsafe { PREV_CAMERA_TRANSFORM } {
-                app.cam_data.frames_without_move = 0.0;
+                app.cam_data.reset = 1;
                 unsafe { PREV_CAMERA_TRANSFORM = current_camera_transform };
             }
 
@@ -148,13 +161,13 @@ impl ApplicationHandler for WinitApp {
             let elapsed = self.start_time.elapsed().as_secs_f32();
             if elapsed > 1.0 {
                 let fps = self.frame_count as f32 / elapsed;
-                println!("FPS: {}", fps);
+                println!("FPS: {fps}");
                 self.frame_count = 0;
                 self.start_time = std::time::Instant::now();
             }
             unsafe { app.render(window).unwrap() };
+            app.cam_data.reset = 0;
             app.cam_data.frame += 1;
-            app.cam_data.frames_without_move += 1.0;
         } else if let WindowEvent::CloseRequested = event {
             let (_app, _window) = &mut self.app;
             unsafe {
@@ -200,7 +213,7 @@ impl ApplicationHandler for WinitApp {
                     app.update_pos(forward_vector);
                 }
                 PhysicalKey::Code(KeyCode::KeyR) => {
-                    app.cam_data.frames_without_move = 0.0;
+                    app.cam_data.reset = 1;
                 }
                 PhysicalKey::Code(KeyCode::KeyQ) => {
                     let forward_vector = Vec3::new(0.0, -0.2, 0.0);
@@ -218,7 +231,7 @@ impl ApplicationHandler for WinitApp {
                         &mut app.cam_data,
                         &app.scene_info,
                     );
-                    app.cam_data.frames_without_move = 0.0;
+                    app.cam_data.reset = 1;
                     app.dbg_ray = Some((app.cam_data.transform, self.mouse_pos_px));
                 }
                 PhysicalKey::Code(KeyCode::KeyI) => {
@@ -235,7 +248,7 @@ impl ApplicationHandler for WinitApp {
                         app.cam_data.transform = dbg_transform;
                         record_points(&mut app.buffers, coords, &mut app.cam_data, &app.scene_info);
                         app.cam_data.transform = curr_transform;
-                        app.cam_data.frames_without_move = 0.0;
+                        app.cam_data.reset = 1;
                         app.cam_data.transform = curr_transform;
                     }
                 }
@@ -252,7 +265,7 @@ impl ApplicationHandler for WinitApp {
                     }
                 }
                 PhysicalKey::Code(KeyCode::Enter) => {
-                    app.cam_data.frames_without_move = 0.0;
+                    app.cam_data.reset = 1;
                     if event.state == winit::event::ElementState::Released {
                         return;
                     }
@@ -265,7 +278,7 @@ impl ApplicationHandler for WinitApp {
                     println!("debug information: {:?}", app.cam_data.debug_information);
                 }
                 PhysicalKey::Code(KeyCode::NumpadAdd) => {
-                    app.cam_data.frames_without_move = 0.0;
+                    app.cam_data.reset = 1;
                     if event.state == winit::event::ElementState::Released {
                         return;
                     }
@@ -273,7 +286,7 @@ impl ApplicationHandler for WinitApp {
                     println!("debug_number: {}", app.cam_data.debug_number);
                 }
                 PhysicalKey::Code(KeyCode::NumpadSubtract) => {
-                    app.cam_data.frames_without_move = 0.0;
+                    app.cam_data.reset = 1;
                     if event.state == winit::event::ElementState::Released {
                         return;
                     }

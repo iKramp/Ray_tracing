@@ -26,7 +26,6 @@ use tracer::modules::trace::claculate_vec_dir_from_cam;
 use tracer::modules::trace::Ray;
 use tracer::tracer_main;
 
-
 #[spirv(compute(threads(16, 16)))]
 pub fn render_pixel(
     #[spirv(global_invocation_id)] id: UVec3,
@@ -51,7 +50,8 @@ pub fn render_pixel(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 10)] object_buffer: &[Object],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 11)] instance_buffer: &[Instance],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 12)] ray_buffer: &mut [Ray],
-    #[spirv(storage_buffer, descriptor_set = 0, binding = 13)] debug_points_array: &mut [Vec3Aligned],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 13)]
+    debug_points_array: &mut [Vec3Aligned],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 14)] image_info_buffer: &[ImageInfo],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 15)] image_data_buffer: &[u8],
 ) {
@@ -66,20 +66,14 @@ pub fn render_pixel(
         return;
     }
 
-    let mut seed = get_seed(
-        id.x,
-        id.y,
-        data.random_seed,
-    );
+    let mut seed = get_seed(id.x, id.y, data.random_seed);
     let coord_index = (id.x + id.y * data.canvas_width) as usize;
 
-    
-    if data.frames_without_move < 0.5 {
+    if data.reset == 1 {
         pixel_acc_buffer[coord_index] = vec4(1.0, 1.0, 1.0, 0.0);
         ray_buffer[coord_index] = Ray::NAN;
         acc_buffer[coord_index] = vec4(0.0, 0.0, 0.0, 0.0);
     }
-
 
     let (ray, mut curr_color) = if !is_ray_nan(&ray_buffer[coord_index]) {
         (ray_buffer[coord_index], pixel_acc_buffer[coord_index])
@@ -112,46 +106,43 @@ pub fn render_pixel(
         debug_points_array,
     );
 
-    if ret.0.x < f32::EPSILON * 10.0 || ret.0.y < f32::EPSILON * 10.0 || ret.0.z < f32::EPSILON * 10.0 {
+    if ret.0.x < f32::EPSILON * 10.0
+        || ret.0.y < f32::EPSILON * 10.0
+        || ret.0.z < f32::EPSILON * 10.0
+    {
         ret.2 = RayReturnState::Stop;
         ret.0 = Vec3::ZERO;
     }
 
-    let rendered_color = Vec4::new(
-        ret.0.x,
-        ret.0.y,
-        ret.0.z,
-        1.0,
-    );
+    let rendered_color = Vec4::new(ret.0.x, ret.0.y, ret.0.z, 1.0);
     curr_color = rendered_color;
     pixel_acc_buffer[coord_index] = curr_color;
-    
+
     match ret.2 {
         RayReturnState::Killed => {
             ray_buffer[coord_index] = Ray::NAN;
             return;
-        },
+        }
         RayReturnState::Ray => {
             ray_buffer[coord_index] = ret.1;
             return;
-        },
+        }
         RayReturnState::Stop => {
             ray_buffer[coord_index] = Ray::NAN;
-        },
+        }
     }
 
     let acc_color = acc_buffer[coord_index] + curr_color;
     acc_buffer[coord_index] = acc_color;
 
-    let new_color = acc_color.xyz()
-        / acc_color.w;
+    let new_color = acc_color.xyz() / acc_color.w;
 
     //gamma correct
     let present_color = Vec4::new(
         new_color.x.powf(1.0 / 2.2),
         new_color.y.powf(1.0 / 2.2),
         new_color.z.powf(1.0 / 2.2),
-        1.0
+        1.0,
     );
 
     unsafe { res_output.write(id.xy(), present_color) }

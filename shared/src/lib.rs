@@ -74,7 +74,7 @@ pub struct CamData {
     pub debug_number: u32,
     pub debug_information: DebugInformation,
     pub debug_point_color: Vec3Aligned,
-    pub frames_without_move: f32,
+    pub reset: u32,
     pub random_seed: u32,
 }
 
@@ -235,6 +235,7 @@ pub struct Object {
 pub struct Instance {
     pub transform: glam::Affine3A,
     pub object_id: u32,
+    pub material_id: u32,
 }
 
 #[derive(Debug, Clone)]

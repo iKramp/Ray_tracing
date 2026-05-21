@@ -33,20 +33,13 @@ fn create_bvh_recursive(
     parent_node_index: u32,
     depth: u8,
 ) {
-
     let (split_axis, split_index) = find_ideal_split(triangles, vertices, triangles.len() / 4);
 
     //sort triangles
     sort_by_axis(triangles, vertices, split_axis as usize);
 
-    let first_box = find_bounding_box(
-        &triangles[..split_index],
-        vertices,
-    );
-    let second_box = find_bounding_box(
-        &triangles[split_index..],
-        vertices,
-    );
+    let first_box = find_bounding_box(&triangles[..split_index], vertices);
+    let second_box = find_bounding_box(&triangles[split_index..], vertices);
 
     let child_1 = bvh_nodes.len() as u32;
     let child_2 = child_1 + 1;
@@ -104,7 +97,8 @@ fn find_ideal_split(triangles: &mut [Face], vertices: &[Vertex], splits: usize) 
             let split_index = ((i as f32 + 1.0) * chunk_size).round() as usize;
             let first_box = find_bounding_box(&triangles[..split_index], vertices);
             let second_box = find_bounding_box(&triangles[split_index..], vertices);
-            let split_cost = box_srface_area(&first_box) * split_index as f32 + box_srface_area(&second_box) * (triangles.len() as f32 - split_index as f32);
+            let split_cost = box_srface_area(&first_box) * split_index as f32
+                + box_srface_area(&second_box) * (triangles.len() as f32 - split_index as f32);
 
             if split_cost < best_result {
                 best_result = split_cost;

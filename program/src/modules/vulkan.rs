@@ -1245,7 +1245,6 @@ unsafe fn create_storage_buffers(
     let mut new_buffers_memory = Vec::new();
 
     let buffers = buffers.get_all_buffers();
-    let mut iteration = 0;
     buffers.for_each(|buffer| {
         let (storage_buffer, storage_buffer_memory) = create_buffer(
             instance,

@@ -71,47 +71,34 @@ pub fn get_color(
     objects: &ObjectInfo,
     debug_points_array: &mut [Vec3Aligned],
 ) -> (Vec3, Ray, RayReturnState) {
-    let mut iterator = 0;
-    loop {
-        let luminance = color.x.max(color.y).max(color.z);
-        let probability = (0.5 + luminance / 2.0).clamp(0.0, 1.0);
-        let rand_val = rand_float(&mut rng_seed, (0.0, 1.0));
-        if rand_val > probability {
-            return (Vec3::ZERO, in_ray, RayReturnState::Stop);
-        } else {
-            color /= probability;
-        }
+    let luminance = color.x.max(color.y).max(color.z);
+    let probability = (0.5 + luminance / 2.0).clamp(0.0, 1.0);
+    let rand_val = rand_float(&mut rng_seed, (0.0, 1.0));
+    if rand_val > probability {
+        return (Vec3::ZERO, in_ray, RayReturnState::Stop);
+    } else {
+        color /= probability;
+    }
 
-        in_ray.pos += in_ray.orientation * f32::EPSILON * 100.0;
-        let ray_return = in_ray.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
+    in_ray.pos += in_ray.orientation * f32::EPSILON * 100.0;
+    let ray_return = in_ray.trace_ray(scene_info, &mut rng_seed, data, &mut color, objects);
 
-        if data.debug_information == shared::DebugInformation::RecordPoints {
-            let mut i = 1;
-            loop {
-                if is_vec_3_nan(&debug_points_array[i as usize + 1]) {
-                    debug_points_array[i as usize] = Vec3Aligned::new(in_ray.pos);
-                    debug_points_array[i as usize + 1] =
-                        Vec3Aligned::new(in_ray.pos + in_ray.orientation * 100.0);
-                    break;
-                }
-                i += 1;
+    if data.debug_information == shared::DebugInformation::RecordPoints {
+        let mut i = 1;
+        loop {
+            if is_vec_3_nan(&debug_points_array[i as usize + 1]) {
+                debug_points_array[i as usize] = Vec3Aligned::new(in_ray.pos);
+                debug_points_array[i as usize + 1] =
+                    Vec3Aligned::new(in_ray.pos + in_ray.orientation * 100.0);
+                break;
             }
+            i += 1;
         }
-        iterator += 1;
+    }
 
-        match ray_return {
-            RayReturnState::Killed => {
-                return (Vec3::ZERO, in_ray, ray_return);
-            }
-            RayReturnState::Stop => {
-                return (color, in_ray, ray_return);
-            }
-            RayReturnState::Ray => {
-                if iterator > data.depth {
-                    return (color, in_ray, RayReturnState::Ray);
-                }
-            }
-        }
+    match ray_return {
+        RayReturnState::Killed => (Vec3::ZERO, in_ray, ray_return),
+        _ => (color, in_ray, ray_return),
     }
 }
 
@@ -136,8 +123,7 @@ fn get_normal_uv(
     let w = (d00 * d21 - d01 * d20) / denom;
     let u = 1.0 - v - w;
 
-    let normal =
-        (normals.0 * u + normals.1 * v + normals.2 * w).normalize();
+    let normal = (normals.0 * u + normals.1 * v + normals.2 * w).normalize();
     let uv = *uv.0 * u + *uv.1 * v + *uv.2 * w;
     (normal, uv)
 }
@@ -221,7 +207,7 @@ impl Ray {
                 &mut record,
                 i as u32,
                 // get_backface_culling(i as u32),
-                false
+                false,
             );
         }
 
@@ -279,12 +265,13 @@ impl Ray {
             vert_1.pos = transform.transform_point3(vert_1.pos);
             vert_2.pos = transform.transform_point3(vert_2.pos);
 
-            
-            let tmp_normals = if tmp_tri.normal.x != u32::MAX {(
-                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.x as usize]),
-                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.y as usize]),
-                transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.z as usize]),
-            )} else {
+            let tmp_normals = if tmp_tri.normal.x != u32::MAX {
+                (
+                    transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.x as usize]),
+                    transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.y as usize]),
+                    transform.transform_vector3(*objects.normal_buffer[tmp_tri.normal.z as usize]),
+                )
+            } else {
                 //calculated from face
                 let edge1 = vert_1.pos - vert_0.pos;
                 let edge2 = vert_2.pos - vert_0.pos;
@@ -292,16 +279,20 @@ impl Ray {
                 (face_normal, face_normal, face_normal)
             };
 
-            let tmp_uv = if tmp_tri.uv.x != u32::MAX {(
-                objects.uv_buffer[tmp_tri.uv.x as usize],
-                objects.uv_buffer[tmp_tri.uv.y as usize],
-                objects.uv_buffer[tmp_tri.uv.z as usize],
-            )} else {(
-                Vec2Aligned::new(Vec2::ZERO),
-                Vec2Aligned::new(Vec2::ZERO),
-                Vec2Aligned::new(Vec2::ZERO),
-            )};
-            
+            let tmp_uv = if tmp_tri.uv.x != u32::MAX {
+                (
+                    objects.uv_buffer[tmp_tri.uv.x as usize],
+                    objects.uv_buffer[tmp_tri.uv.y as usize],
+                    objects.uv_buffer[tmp_tri.uv.z as usize],
+                )
+            } else {
+                (
+                    Vec2Aligned::new(Vec2::ZERO),
+                    Vec2Aligned::new(Vec2::ZERO),
+                    Vec2Aligned::new(Vec2::ZERO),
+                )
+            };
+
             let (normal, uv) = get_normal_uv(
                 self.pos + self.orientation * record.t,
                 (vert_0, vert_1, vert_2),
@@ -309,11 +300,10 @@ impl Ray {
                 tmp_uv,
             );
 
-
             (normal, uv)
         };
 
-        let material_id = record.instance_id as usize;
+        let material_id = instance.material_id as usize;
         let ray = *self;
 
         let mat_return = if material_id == 0 {
@@ -367,12 +357,12 @@ impl Ray {
     }
 }
 
-fn get_backface_culling(instance_id: u32) -> bool {
-    if instance_id == 0 {
+fn get_backface_culling(material_id: u32) -> bool {
+    if material_id == 0 {
         MATERIAL_0.backface_culling()
-    } else if instance_id == 1 {
+    } else if material_id == 1 {
         MATERIAL_1.backface_culling()
-    } else if instance_id == 2 {
+    } else if material_id == 2 {
         MATERIAL_2.backface_culling()
     } else {
         true // Default to true for other materials

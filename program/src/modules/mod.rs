@@ -8,8 +8,11 @@ use buffers::*;
 use glam::Vec3;
 use nalgebra_glm::Vec4;
 pub use point_recorder::record_points;
-use shared::{glam::{Affine3A, UVec3}, *};
-use tracer::modules::trace::Ray;
+use shared::{
+    glam::{Affine3A, UVec3},
+    *,
+};
+use tracer::modules::{material::GenericMaterial, trace::Ray};
 
 use crate::{modules::buffers::BufferHolder, HEIGHT, WIDTH};
 
@@ -38,13 +41,15 @@ pub fn parse_obj_file(file: &str) -> (Vec<Vertex>, Vec<Face>, Vec<Vec3Aligned>, 
                             .unwrap_or(&"")
                             .parse::<u32>()
                             .unwrap_or(0)
-                            .overflowing_sub(1).0;
+                            .overflowing_sub(1)
+                            .0;
                         let vn_idx = indices
                             .get(2)
                             .unwrap_or(&"")
                             .parse::<u32>()
                             .unwrap_or(0)
-                            .overflowing_sub(1).0;
+                            .overflowing_sub(1)
+                            .0;
                         (v_idx, vt_idx, vn_idx)
                     })
                     .collect::<Vec<(u32, u32, u32)>>();
@@ -96,23 +101,45 @@ impl SceneBuilder {
             sun_orientation: Vec3::new(1.0, -1.0, 1.0),
         };
 
-        builder.buffers.insert("acc_image", vec![Vec4::zeros(); WIDTH * HEIGHT]);
-        builder.buffers.insert("acc_per_pixel", vec![Vec4::zeros(); WIDTH * HEIGHT]);
+        builder
+            .buffers
+            .insert("acc_image", vec![Vec4::zeros(); WIDTH * HEIGHT]);
+        builder
+            .buffers
+            .insert("acc_per_pixel", vec![Vec4::zeros(); WIDTH * HEIGHT]);
         builder.buffers.insert(VERT_BUFFER, Vec::<Vertex>::new());
-        builder.buffers.insert(NORMAL_BUFFER, Vec::<Vec3Aligned>::new());
+        builder
+            .buffers
+            .insert(NORMAL_BUFFER, Vec::<Vec3Aligned>::new());
         builder.buffers.insert(UV_BUFFER, Vec::<Vec2Aligned>::new());
         builder.buffers.insert(TRI_BUFFER, Vec::<Face>::new());
         builder.buffers.insert(BVH_BUFFER, Vec::<Bvh>::new());
         builder.buffers.insert(OBJ_BUFFER, Vec::<Object>::new());
-        builder.buffers.insert(INSTANCE_BUFFER, Vec::<Instance>::new());
-        builder.buffers.insert(RAY_STATE_BUFFER, vec![Ray::NAN; WIDTH * HEIGHT]);
-        builder.buffers.insert(DEBUG_POINTS_BUFFER, vec![Vec3Aligned::new(Vec3::ZERO); 2]);
-        builder.buffers.insert(IMAGE_INFO_BUFFER, Vec::<ImageInfo>::new());
+        builder
+            .buffers
+            .insert(INSTANCE_BUFFER, Vec::<Instance>::new());
+        builder
+            .buffers
+            .insert(RAY_STATE_BUFFER, vec![Ray::NAN; WIDTH * HEIGHT]);
+        builder
+            .buffers
+            .insert(DEBUG_POINTS_BUFFER, vec![Vec3Aligned::new(Vec3::ZERO); 2]);
+        builder
+            .buffers
+            .insert(IMAGE_INFO_BUFFER, Vec::<ImageInfo>::new());
         builder.buffers.insert(IMAGE_DATA_BUFFER, Vec::<u8>::new());
+        builder
+            .buffers
+            .insert(MATERIAL_BUFFER, Vec::<GenericMaterial>::new());
         builder
     }
 
-    pub fn add_obj_file(mut self, file: &str, instance_matrices: &[Affine3A]) -> Self {
+    pub fn add_obj_file(
+        mut self,
+        file: &str,
+        instance_matrices: &[Affine3A],
+        material_id: u32,
+    ) -> Self {
         let (vertices, mut tris, normals, uvs) = parse_obj_file(file);
         println!(
             "Adding {} vertices and {} triangles from OBJ file",
@@ -149,16 +176,24 @@ impl SceneBuilder {
                         face.vert.y + vert_offset,
                         face.vert.z + vert_offset,
                     ),
-                    uv: if face.uv.x != u32::MAX {UVec3::new(
-                        face.uv.x + uv_offset,
-                        face.uv.y + uv_offset,
-                        face.uv.z + uv_offset,
-                    )} else {UVec3::new(u32::MAX, u32::MAX, u32::MAX)},
-                    normal: if face.normal.x != u32::MAX {UVec3::new(
-                        face.normal.x + normal_offset,
-                        face.normal.y + normal_offset,
-                        face.normal.z + normal_offset,
-                    )} else {UVec3::new(u32::MAX, u32::MAX, u32::MAX)},
+                    uv: if face.uv.x != u32::MAX {
+                        UVec3::new(
+                            face.uv.x + uv_offset,
+                            face.uv.y + uv_offset,
+                            face.uv.z + uv_offset,
+                        )
+                    } else {
+                        UVec3::new(u32::MAX, u32::MAX, u32::MAX)
+                    },
+                    normal: if face.normal.x != u32::MAX {
+                        UVec3::new(
+                            face.normal.x + normal_offset,
+                            face.normal.y + normal_offset,
+                            face.normal.z + normal_offset,
+                        )
+                    } else {
+                        UVec3::new(u32::MAX, u32::MAX, u32::MAX)
+                    },
                     #[cfg(not(target_arch = "spirv"))]
                     _padding_1: [0; 4],
                     #[cfg(not(target_arch = "spirv"))]
@@ -202,6 +237,7 @@ impl SceneBuilder {
                 .map(|m| Instance {
                     transform: *m,
                     object_id: object_offset,
+                    material_id,
                 })
                 .collect::<Vec<Instance>>(),
         );
