@@ -20,6 +20,7 @@ use tracer::debug_points::check_points_proximity;
 use tracer::modules::get_seed;
 use tracer::modules::is_ray_nan;
 use tracer::modules::is_vec_3_nan;
+use tracer::modules::material::GenericMaterial;
 use tracer::modules::material::RayReturnState;
 use tracer::modules::rand_float;
 use tracer::modules::trace::claculate_vec_dir_from_cam;
@@ -54,6 +55,8 @@ pub fn render_pixel(
     debug_points_array: &mut [Vec3Aligned],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 14)] image_info_buffer: &[ImageInfo],
     #[spirv(storage_buffer, descriptor_set = 0, binding = 15)] image_data_buffer: &[u8],
+    #[spirv(storage_buffer, descriptor_set = 0, binding = 16)]
+    material_buffer: &[GenericMaterial],
 ) {
     if id.x >= data.canvas_width || id.y >= data.canvas_height {
         // Out of bounds, skip processing.
@@ -73,6 +76,7 @@ pub fn render_pixel(
         pixel_acc_buffer[coord_index] = vec4(1.0, 1.0, 1.0, 0.0);
         ray_buffer[coord_index] = Ray::NAN;
         acc_buffer[coord_index] = vec4(0.0, 0.0, 0.0, 0.0);
+        unsafe { res_output.write(id.xy(), Vec4::ZERO) };
     }
 
     let (ray, mut curr_color) = if !is_ray_nan(&ray_buffer[coord_index]) {
@@ -103,6 +107,7 @@ pub fn render_pixel(
         object_buffer,
         instance_buffer,
         image_info_buffer,
+        material_buffer,
         debug_points_array,
     );
 

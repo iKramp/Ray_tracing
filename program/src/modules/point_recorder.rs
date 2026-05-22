@@ -81,6 +81,7 @@ pub fn record_points(
             object_buffer,
             instance_buffer,
             &[],
+            &[],
             &mut debug_buffer,
         );
         cam_data.debug_point_color = Vec3Aligned::new(color);

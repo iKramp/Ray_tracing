@@ -2,7 +2,7 @@ use crate::modules::is_inf;
 
 //use super::material::*;
 use super::trace::*;
-use shared::{glam::Vec3, Bvh, Face, Vertex};
+use shared::{glam::Vec3, Bvh, ChildTriangleMode, Face, Vertex};
 //use crate::Resources;
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
@@ -49,13 +49,7 @@ pub struct Mesh<'a> {
 }
 
 impl Mesh<'_> {
-    fn hit_triangle(
-        &self,
-        i: u32,
-        ray: &Ray,
-        t_clamp: (f32, f32),
-        backface_cull: bool,
-    ) -> f32 {
+    fn hit_triangle(&self, i: u32, ray: &Ray, t_clamp: (f32, f32), backface_cull: bool) -> f32 {
         let triangle = &self.tris[i as usize];
         let p0 = &self.verts[triangle.vert.x as usize];
         let p1 = &self.verts[triangle.vert.y as usize];
@@ -85,6 +79,14 @@ impl Mesh<'_> {
             if dist == f32::INFINITY || dist > t_clamp.1 {
                 stack_size -= 1;
                 continue;
+            }
+
+            if matches!(node.mode, ChildTriangleMode::Triangles)
+                && node.child_1_or_first_tri == 0
+                && node.child_2_or_last_tri == 3
+            {
+                //dbg
+                record.add(10.0, 0, instance_id);
             }
 
             if matches!(node.mode, shared::ChildTriangleMode::Children) {

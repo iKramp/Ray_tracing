@@ -11,7 +11,7 @@ use shared::{
 
 use crate::modules::{
     get_seed,
-    material::RayReturnState,
+    material::{GenericMaterial, RayReturnState},
     rand_float,
     trace::{claculate_vec_dir_from_cam, Ray},
     xor_shift, ObjectInfo,
@@ -35,6 +35,7 @@ pub fn tracer_main(
     object_buffer: &[Object],
     instance_buffer: &[Instance],
     image_info_buffer: &[ImageInfo],
+    material_buffer: &[GenericMaterial],
 
     debug_points_array: &mut [Vec3Aligned],
 ) -> (Vec3, Ray, RayReturnState) {
@@ -47,6 +48,7 @@ pub fn tracer_main(
         instance_buffer,
         bvh_buffer,
         image_info_buffer,
+        material_buffer,
     };
 
     modules::trace::get_color(
@@ -74,6 +76,7 @@ pub fn trace_single_ray(
     object_buffer: &[Object],
     instance_buffer: &[Instance],
     image_info_buffer: &[ImageInfo],
+    material_buffer: &[GenericMaterial],
 
     debug_points_array: &mut [Vec3Aligned],
 ) -> Vec3 {
@@ -109,6 +112,7 @@ pub fn trace_single_ray(
             object_buffer,
             instance_buffer,
             image_info_buffer,
+            material_buffer,
             debug_points_array,
         );
 

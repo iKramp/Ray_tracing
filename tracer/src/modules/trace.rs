@@ -19,25 +19,7 @@ use core::f32::consts::PI;
 #[allow(unused_imports)]
 use spirv_std::num_traits::Float;
 
-// const MATERIAL_0: RefractiveMaterial = RefractiveMaterial::new(Vec3::new(0.9, 0.9, 0.9), 1.33);
-const MATERIAL_0: GenericMaterial = GenericMaterial {
-    color_surface: Vec3::new(1.0, 1.0, 1.0),
-    color_emissive: Vec3::ZERO,
-    specular: 0.0,
-    specular_roughness: 0.0,
-    roughness: 0.0,
-    ior: 1.5,
-};
-const MATERIAL_1: NormalMaterial = NormalMaterial {};
-// const MATERIAL_2: EmmissiveMaterial = EmmissiveMaterial::new(Vec3::new(15.0, 15.0, 15.0));
-const MATERIAL_2: GenericMaterial = GenericMaterial {
-    color_surface: Vec3::new(0.0, 0.0, 0.0),
-    color_emissive: Vec3::new(15.0, 15.0, 15.0),
-    specular: 0.0,
-    specular_roughness: 0.0,
-    roughness: 0.0,
-    ior: 0.0, //no refraction
-};
+const NORMAL_MATERIAL: NormalMaterial = NormalMaterial {};
 
 pub fn claculate_vec_dir_from_cam(data: &CamData, (pix_x, pix_y): (f32, f32)) -> Ray {
     //fov is counted in degrees in the horizontal direction
@@ -201,13 +183,15 @@ impl Ray {
             };
 
             let clamp = (f32::EPSILON, record.t);
+            let num_materials = scene_info.num_materials;
+            let material_buffer = objects.material_buffer;
+
             mesh.hit(
                 &ray,
                 clamp,
                 &mut record,
                 i as u32,
-                // get_backface_culling(i as u32),
-                false,
+                get_backface_culling(i as u32, num_materials, material_buffer),
             );
         }
 
@@ -306,12 +290,13 @@ impl Ray {
         let material_id = instance.material_id as usize;
         let ray = *self;
 
-        let mat_return = if material_id == 0 {
-            MATERIAL_0.bxdf(*color, ray, normal, uv, record.t, seed)
-        } else if material_id == 1 {
-            MATERIAL_1.bxdf(*color, ray, normal, uv, record.t, seed)
+        let num_materials = scene_info.num_materials;
+        let material_buffer = objects.material_buffer;
+
+        let mat_return = if material_id < num_materials as usize {
+            material_buffer[material_id].bxdf(*color, ray, normal, uv, record.t, seed)
         } else {
-            MATERIAL_2.bxdf(*color, ray, normal, uv, record.t, seed)
+            NORMAL_MATERIAL.bxdf(*color, ray, normal, uv, record.t, seed)
         };
 
         *self = mat_return.new_ray;
@@ -334,8 +319,8 @@ impl Ray {
     }
 
     pub(super) fn hits_bounding(&self, bounding_box: &BoundingBox) -> f32 {
-        let mut t_min = (bounding_box.min - self.pos) / self.orientation;
-        let mut t_max = (bounding_box.max - self.pos) / self.orientation;
+        let mut t_min = (bounding_box.min() - self.pos) / self.orientation;
+        let mut t_max = (bounding_box.max() - self.pos) / self.orientation;
 
         if t_min.x > t_max.x {
             core::mem::swap(&mut t_min.x, &mut t_max.x);
@@ -350,21 +335,23 @@ impl Ray {
         let t_near = f32::max(t_min.x, f32::max(t_min.y, t_min.z));
         let t_far = f32::min(t_max.x, f32::min(t_max.y, t_max.z));
 
-        if t_near < f32::INFINITY && t_near < t_far && t_far > 0.0 {
+        if t_near < f32::INFINITY
+            && (t_near < t_far || f32::abs(t_near - t_far) < f32::EPSILON)
+            && t_far > 0.0
+        {
             return t_near;
         }
         f32::INFINITY
     }
 }
 
-fn get_backface_culling(material_id: u32) -> bool {
-    if material_id == 0 {
-        MATERIAL_0.backface_culling()
-    } else if material_id == 1 {
-        MATERIAL_1.backface_culling()
-    } else if material_id == 2 {
-        MATERIAL_2.backface_culling()
-    } else {
-        true // Default to true for other materials
+fn get_backface_culling(
+    material_id: u32,
+    num_materials: u32,
+    material_buffer: &[GenericMaterial],
+) -> bool {
+    if material_id < num_materials {
+        return material_buffer[material_id as usize].backface_culling();
     }
+    NORMAL_MATERIAL.backface_culling()
 }

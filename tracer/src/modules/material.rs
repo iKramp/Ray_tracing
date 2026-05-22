@@ -68,9 +68,15 @@ pub trait Material {
     ) -> MaterialReturn;
 }
 
+#[repr(C)]
+#[derive(Clone, Copy)]
 pub struct GenericMaterial {
     pub color_surface: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub padding_1: [u8; 4],
     pub color_emissive: Vec3,
+    #[cfg(not(target_arch = "spirv"))]
+    pub padding_2: [u8; 4],
     pub specular: f32,
     pub specular_roughness: f32,
     pub roughness: f32,
@@ -179,7 +185,6 @@ impl Material for GenericMaterial {
             };
         }
 
-
         let entering = in_ray.orientation.dot(normal) < 0.0;
 
         if self.specular > f32::EPSILON {
@@ -212,7 +217,7 @@ impl Material for GenericMaterial {
     }
 
     fn backface_culling(&self) -> bool {
-        false
+        true
     }
 }
 
@@ -227,7 +232,6 @@ impl NormalMaterial {
                 direction: ray.orientation,
             };
         }
-
 
         RayReturn {
             state: RayReturnState::Ray,
@@ -278,11 +282,23 @@ impl Material for NormalMaterial {
     ) -> MaterialReturn {
         let next_ray_return = self.get_next_ray_dir(seed, in_ray, normal);
         let next_color = self.get_color(curr_color, normal, (uv.x, uv.y), in_ray.orientation);
+        //checkerboard pattern, 10x10
+        const CHECKER_NUM: f32 = 10.0;
+        let checker_square =
+            ((uv.x * CHECKER_NUM).floor() as i32 + (uv.y * CHECKER_NUM).floor() as i32) % 2;
+        let checker_color = if checker_square == 0 {
+            Vec3::new(0.9, 0.9, 0.9) //light gray
+        } else {
+            Vec3::new(0.5, 0.5, 0.5) //dark gray
+        };
 
         MaterialReturn {
             ray_return_state: next_ray_return.state,
-            new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, next_ray_return.direction),
-            next_color,
+            new_ray: Ray::new(
+                in_ray.pos + in_ray.orientation * t,
+                next_ray_return.direction,
+            ),
+            next_color: next_color * checker_color,
         }
     }
 }
@@ -293,7 +309,10 @@ impl BackgroundMaterial {
     pub fn get_stop_color(&self, _normal: Vec3, _uv: (f32, f32), ray_dir: Vec3) -> Vec3 {
         let temp = ray_dir.normalize();
 
-        let factor = (temp.y + 0.5).clamp(0.0, 1.0);
-        Vec3::new(1.0, 1.0, 1.0) * (1.0 - factor) + Vec3::new(0.5, 0.7, 1.0) * factor
+        let gradient_factor = (temp.y + 0.5).clamp(0.0, 1.0);
+        let brightness_factor = 0.25;
+        (Vec3::new(1.0, 1.0, 1.0) * (1.0 - gradient_factor)
+            + Vec3::new(0.5, 0.7, 1.0) * gradient_factor)
+            * brightness_factor
     }
 }

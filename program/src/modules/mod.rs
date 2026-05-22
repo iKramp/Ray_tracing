@@ -134,6 +134,11 @@ impl SceneBuilder {
         builder
     }
 
+    pub fn add_material(mut self, material: GenericMaterial) -> Self {
+        self.buffers.append(MATERIAL_BUFFER, &[material]);
+        self
+    }
+
     pub fn add_obj_file(
         mut self,
         file: &str,
@@ -147,6 +152,24 @@ impl SceneBuilder {
             tris.len()
         );
         let bvh = bvh::create_bvh(&vertices, tris.as_mut());
+        println!("Created BVH with {} nodes", bvh.len());
+        println!(
+            "nodes: {:?}",
+            bvh.iter()
+                .take(10)
+                .map(|node| {
+                    let mode_str = match node.mode {
+                        ChildTriangleMode::Children => "Children",
+                        ChildTriangleMode::Triangles => "Triangles",
+                    };
+                    format!("{{ bbox: [{:.2}, {:.2}, {:.2}] - [{:.2}, {:.2}, {:.2}], mode: {}, child_1_or_first_tri: {}, child_2_or_last_tri: {} }}",
+                        node.bounding_box.min().x, node.bounding_box.min().y, node.bounding_box.min().z,
+                        node.bounding_box.max().x, node.bounding_box.max().y, node.bounding_box.max().z,
+                        mode_str, node.child_1_or_first_tri, node.child_2_or_last_tri)
+                })
+                .collect::<Vec<String>>()
+
+        );
 
         let vert_offset = self.buffers.get_length_unchecked(VERT_BUFFER) as u32;
         let bvh_offset = self.buffers.get_length_unchecked(BVH_BUFFER) as u32;
@@ -225,8 +248,6 @@ impl SceneBuilder {
             OBJ_BUFFER,
             &[Object {
                 bvh_root: bvh_offset,
-                normal_image_index: u32::MAX,
-                texture_image_index: u32::MAX,
             }],
         );
 
@@ -268,6 +289,7 @@ impl SceneBuilder {
             num_instances: self.buffers.get_length_unchecked(INSTANCE_BUFFER) as u32,
             num_bvh_nodes: self.buffers.get_length_unchecked(BVH_BUFFER) as u32,
             num_triangles: self.buffers.get_length_unchecked(TRI_BUFFER) as u32,
+            num_materials: self.buffers.get_length_unchecked(MATERIAL_BUFFER) as u32,
             sun_orientation: self.sun_orientation,
         };
 

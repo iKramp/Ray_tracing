@@ -91,6 +91,7 @@ pub struct SceneInfo {
     pub num_instances: u32,
     pub num_bvh_nodes: u32,
     pub num_triangles: u32,
+    pub num_materials: u32,
     pub sun_orientation: Vec3,
 }
 
@@ -207,28 +208,78 @@ impl core::ops::DerefMut for Vec2Aligned {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 #[repr(C, align(16))]
 pub struct BoundingBox {
-    pub min: Vec3,
+    min: Vec3,
     #[cfg(not(target_arch = "spirv"))]
-    pub padding_1: [u8; 4],
-    pub max: Vec3,
+    padding_1: [u8; 4],
+    max: Vec3,
     #[cfg(not(target_arch = "spirv"))]
-    pub padding_2: [u8; 4],
+    invalid: u32,
 }
 
 impl BoundingBox {
     pub fn center(&self) -> Vec3 {
         (self.min + self.max) * 0.5
     }
+
+    pub fn union(&mut self, other: &BoundingBox) {
+        #[cfg(not(target_arch = "spirv"))]
+        if self.invalid != 0 {
+            *self = *other;
+            return;
+        }
+        self.min = self.min.min(other.min);
+        self.max = self.max.max(other.max);
+    }
+
+    pub fn default_invalid() -> Self {
+        Self {
+            min: Vec3::ZERO,
+            max: Vec3::ZERO,
+            #[cfg(not(target_arch = "spirv"))]
+            padding_1: [0; 4],
+            #[cfg(not(target_arch = "spirv"))]
+            invalid: 1,
+        }
+    }
+
+    pub fn new(min: Vec3, max: Vec3) -> Self {
+        Self {
+            min,
+            max,
+            #[cfg(not(target_arch = "spirv"))]
+            padding_1: [0; 4],
+            #[cfg(not(target_arch = "spirv"))]
+            invalid: 0,
+        }
+    }
+
+    pub fn surface_area(&self) -> f32 {
+        let size_x = (self.max.x - self.min.x).abs();
+        let size_y = (self.max.y - self.min.y).abs();
+        let size_z = (self.max.z - self.min.z).abs();
+        2.0 * (size_x * size_y + size_x * size_z + size_y * size_z)
+    }
+
+    pub fn min(&self) -> Vec3 {
+        self.min
+    }
+
+    pub fn max(&self) -> Vec3 {
+        self.max
+    }
+
+    #[cfg(not(target_arch = "spirv"))]
+    pub fn is_valid(&self) -> bool {
+        self.invalid == 0
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Object {
     pub bvh_root: u32,
-    pub normal_image_index: u32,
-    pub texture_image_index: u32,
 }
 
 #[derive(Debug, Clone)]

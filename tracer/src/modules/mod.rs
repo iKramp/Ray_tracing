@@ -1,6 +1,9 @@
-use shared::{glam::{Affine3A, Mat3}, Bvh, Face, ImageInfo, Instance, Object, Vec2Aligned, Vec3Aligned, Vertex};
+use shared::{
+    glam::{Affine3A, Mat3},
+    Bvh, Face, ImageInfo, Instance, Object, Vec2Aligned, Vec3Aligned, Vertex,
+};
 
-use crate::modules::trace::Ray;
+use crate::modules::{material::GenericMaterial, trace::Ray};
 
 pub mod hit;
 pub mod material;
@@ -68,7 +71,7 @@ pub fn is_mat3_nan(mat: Mat3) -> bool {
 }
 
 pub fn is_aff3a_nan(mat: &Affine3A) -> bool {
-    is_vec_3_nan(&mat.translation.into()) || is_mat3_nan(mat.matrix3.into())   
+    is_vec_3_nan(&mat.translation.into()) || is_mat3_nan(mat.matrix3.into())
 }
 
 pub struct ObjectInfo<'a> {
@@ -80,4 +83,5 @@ pub struct ObjectInfo<'a> {
     pub instance_buffer: &'a [Instance],
     pub bvh_buffer: &'a [Bvh],
     pub image_info_buffer: &'a [ImageInfo],
+    pub material_buffer: &'a [GenericMaterial],
 }

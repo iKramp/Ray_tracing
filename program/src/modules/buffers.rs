@@ -81,7 +81,7 @@ impl BufferHolder {
                     let start = i * elem_size;
                     let end = start + elem_size;
                     let elem = &buffer.1.data[start..end];
-                    print!("{:?}, ", elem);
+                    print!("{elem:?}, ");
                 }
                 println!();
             } else {

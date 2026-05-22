@@ -59,12 +59,6 @@ const MAX_FRAMES_IN_FLIGHT: usize = 1;
 const NUM_UNIFORM_DESCRIPTORS: u32 = 2;
 const NUM_IMAGE_DESCRIPTORS: u32 = 1;
 
-const MAX_VERTICES: usize = 1000000;
-const MAX_TRIANGLES: usize = 1000000;
-const MAX_OBJECTS: usize = 100;
-const MAX_INSTANCES: usize = 1000;
-const MAX_BVH_NODES: usize = MAX_VERTICES; //this more than covers all possible vertices in a scene
-
 /// Our Vulkan app.
 pub(crate) struct App {
     entry: Entry,
