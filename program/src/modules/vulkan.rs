@@ -51,7 +51,9 @@ const DEVICE_EXTENSIONS: &[vk::ExtensionName] = &[
 /// The Vulkan SDK version that started requiring the portability subset extension for macOS.
 const PORTABILITY_MACOS_VERSION: Version = Version::new(1, 3, 216);
 
+const PATH: &str = env!("shader.spv");
 const SHADER: &[u8] = include_bytes!(env!("shader.spv"));
+const OLD_SHADER: &[u8] = include_bytes!("../../../assets/shader.spv");
 
 const MAX_FRAMES_IN_FLIGHT: usize = 1;
 
@@ -114,6 +116,7 @@ impl App {
         scene_info: SceneInfo,
         mut buffers: BufferHolder,
     ) -> Result<Self> {
+        println!("shader path is {}", PATH);
         let loader = LibloadingLoader::new(LIBRARY)?;
         let entry = Entry::new(loader).map_err(|b| anyhow!("{}", b))?;
         let mut data = AppData::default();
@@ -352,6 +355,7 @@ struct AppData {
     descriptor_set_layout: vk::DescriptorSetLayout,
     pipeline_layout: vk::PipelineLayout,
     pipeline: vk::Pipeline,
+    old_pipeline: vk::Pipeline,
     // Framebuffers
     framebuffers: Vec<vk::Framebuffer>,
     //ubo buffers
@@ -837,6 +841,9 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
     let compute_shader_code = SHADER;
     let compute_shader_module = create_shader_module(device, compute_shader_code)?;
 
+    let old_compute_shader_code = OLD_SHADER;
+    let old_compute_shader_module = create_shader_module(device, old_compute_shader_code)?;
+
     // Shader stage info
     let stage_info = vk::PipelineShaderStageCreateInfo::builder()
         .stage(vk::ShaderStageFlags::COMPUTE)
@@ -844,23 +851,43 @@ unsafe fn create_pipeline(device: &Device, data: &mut AppData) -> Result<()> {
         .name(b"render_pixel\0") // entry point in your GLSL or SPIR-V
         .build();
 
+    let old_stage_info = vk::PipelineShaderStageCreateInfo::builder()
+        .stage(vk::ShaderStageFlags::COMPUTE)
+        .module(old_compute_shader_module)
+        .name(b"render_pixel\0") // entry point in your GLSL or SPIR-V
+        .build();
+
+    let push_constant_range = vk::PushConstantRange::builder()
+        .stage_flags(vk::ShaderStageFlags::COMPUTE)
+        .offset(0)
+        .size(std::mem::size_of::<u32>() as u32)
+        .build();
+
     // Descriptor set layout(s)
     let set_layouts = &[data.descriptor_set_layout];
     let layout_info = vk::PipelineLayoutCreateInfo::builder()
         .set_layouts(set_layouts)
+        .push_constant_ranges(&[push_constant_range])
         .build();
 
     data.pipeline_layout = device.create_pipeline_layout(&layout_info, None)?;
 
     // Compute pipeline
-    let pipeline_info = vk::ComputePipelineCreateInfo::builder()
-        .stage(stage_info)
-        .layout(data.pipeline_layout)
-        .build();
+    let pipeline_infos = [
+        vk::ComputePipelineCreateInfo::builder()
+            .stage(stage_info)
+            .layout(data.pipeline_layout)
+            .build(),
+        vk::ComputePipelineCreateInfo::builder()
+            .stage(old_stage_info)
+            .layout(data.pipeline_layout)
+            .build(),
+    ];
 
     let pipelines =
-        device.create_compute_pipelines(vk::PipelineCache::null(), &[pipeline_info], None)?;
+        device.create_compute_pipelines(vk::PipelineCache::null(), &pipeline_infos, None)?;
     data.pipeline = pipelines.0[0];
+    data.old_pipeline = pipelines.0[1];
 
     // Cleanup
     device.destroy_shader_module(compute_shader_module, None);
@@ -937,17 +964,13 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
 
     data.command_buffers = device.allocate_command_buffers(&allocate_info)?;
 
+    let group_count_x = (WIDTH / 2).div_ceil(16) as u32;
+    let group_count_y = HEIGHT.div_ceil(16) as u32;
+    let group_count_z = 1;
+
     for (i, &command_buffer) in data.command_buffers.iter().enumerate() {
         let begin_info = vk::CommandBufferBeginInfo::builder();
-
         device.begin_command_buffer(command_buffer, &begin_info)?;
-
-        // Bind compute pipeline
-        device.cmd_bind_pipeline(
-            command_buffer,
-            vk::PipelineBindPoint::COMPUTE,
-            data.pipeline,
-        );
 
         // Bind descriptor sets for compute pipeline
         device.cmd_bind_descriptor_sets(
@@ -959,10 +982,34 @@ unsafe fn create_command_buffers(device: &Device, data: &mut AppData) -> Result<
             &[],
         );
 
-        let group_count_x = WIDTH.div_ceil(16) as u32;
-        let group_count_y = HEIGHT.div_ceil(16) as u32;
-        let group_count_z = 1;
+        // left hald, old shader
+        device.cmd_bind_pipeline(
+            command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            data.old_pipeline,
+        );
+        device.cmd_push_constants(
+            command_buffer,
+            data.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &0u32.to_ne_bytes(), // left half
+        );
+        device.cmd_dispatch(command_buffer, group_count_x, group_count_y, group_count_z);
 
+        // // right half, new shader
+        device.cmd_bind_pipeline(
+            command_buffer,
+            vk::PipelineBindPoint::COMPUTE,
+            data.pipeline,
+        );
+        device.cmd_push_constants(
+            command_buffer,
+            data.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &1u32.to_ne_bytes(), // right half
+        );
         device.cmd_dispatch(command_buffer, group_count_x, group_count_y, group_count_z);
 
         // Transition image_buffers[i] to TRANSFER_SRC_OPTIMAL

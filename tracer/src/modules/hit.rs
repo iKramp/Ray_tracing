@@ -33,10 +33,14 @@ impl HitRecord {
         }
     }
 
-    pub fn add(&mut self, t: f32, triangle_id: u32, instance_id: u32) {
+    pub fn add(&mut self, t: f32, triangle_id: u32, instance_id: u32) -> bool {
+        if triangle_id == self.triangle_id && instance_id == self.instance_id {
+            return false;
+        }
         self.t = t;
         self.triangle_id = triangle_id;
         self.instance_id = instance_id;
+        return true;
     }
 }
 
@@ -65,6 +69,7 @@ impl Mesh<'_> {
         record: &mut HitRecord,
         instance_id: u32,
         backface_cull: bool,
+        short_circuit: bool,
     ) {
         let mut stack = [0_u32; 32];
         let mut stack_size = 1;
@@ -117,8 +122,14 @@ impl Mesh<'_> {
             for i in first_triangle..=last_triangle {
                 let t = self.hit_triangle(i, ray, t_clamp, backface_cull);
                 if !is_inf(t) {
-                    t_clamp.1 = t;
-                    record.add(t, i, instance_id);
+                    let successful = record.add(t, i, instance_id);
+                    if successful {
+                        //ignore same triangle
+                        t_clamp.1 = t;
+                        if short_circuit {
+                            return;
+                        }
+                    }
                 }
             }
             #[cfg(feature = "debug")]
@@ -133,8 +144,16 @@ impl Mesh<'_> {
         record: &mut HitRecord,
         instance_id: u32,
         backface_cull: bool,
+        short_circuit: bool,
     ) {
-        self.hit_bvh(ray, t_clamp, record, instance_id, backface_cull)
+        self.hit_bvh(
+            ray,
+            t_clamp,
+            record,
+            instance_id,
+            backface_cull,
+            short_circuit,
+        )
     }
 }
 

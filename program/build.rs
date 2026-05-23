@@ -1,4 +1,4 @@
-use spirv_builder::{SpirvBuilder, MetadataPrintout, Capability::*};
+use spirv_builder::{Capability::*, MetadataPrintout, SpirvBuilder};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     SpirvBuilder::new("../shader", "spirv-unknown-vulkan1.0")
@@ -6,5 +6,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .capability(Int8)
         .extension("SPV_KHR_storage_buffer_storage_class")
         .build()?;
+
     Ok(())
 }

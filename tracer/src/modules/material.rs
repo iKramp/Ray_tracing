@@ -66,6 +66,10 @@ pub trait Material {
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn;
+
+    fn emissive_color(&self) -> Vec3 {
+        Vec3::ZERO
+    }
 }
 
 #[repr(C)]
@@ -168,6 +172,10 @@ impl GenericMaterial {
 }
 
 impl Material for GenericMaterial {
+    fn emissive_color(&self) -> Vec3 {
+        self.color_emissive
+    }
+
     fn bxdf(
         &self,
         curr_color: Vec3,
@@ -177,11 +185,12 @@ impl Material for GenericMaterial {
         t: f32,
         seed: &mut u32,
     ) -> MaterialReturn {
-        if self.color_emissive.length() > f32::EPSILON {
+        //can't be both emissive and anything else for now
+        if self.emissive_color().length() > f32::EPSILON {
             return MaterialReturn {
                 ray_return_state: RayReturnState::Stop,
                 new_ray: Ray::new(in_ray.pos + in_ray.orientation * t, Vec3::ZERO),
-                next_color: curr_color * self.color_emissive,
+                next_color: curr_color * self.emissive_color(),
             };
         }
 
@@ -217,7 +226,8 @@ impl Material for GenericMaterial {
     }
 
     fn backface_culling(&self) -> bool {
-        true
+        //transparency based
+        self.ior <= f32::EPSILON
     }
 }
 
@@ -307,12 +317,13 @@ pub struct BackgroundMaterial {}
 
 impl BackgroundMaterial {
     pub fn get_stop_color(&self, _normal: Vec3, _uv: (f32, f32), ray_dir: Vec3) -> Vec3 {
-        let temp = ray_dir.normalize();
-
-        let gradient_factor = (temp.y + 0.5).clamp(0.0, 1.0);
-        let brightness_factor = 0.25;
-        (Vec3::new(1.0, 1.0, 1.0) * (1.0 - gradient_factor)
-            + Vec3::new(0.5, 0.7, 1.0) * gradient_factor)
-            * brightness_factor
+        //     let temp = ray_dir.normalize();
+        //
+        //     let gradient_factor = (temp.y + 0.5).clamp(0.0, 1.0);
+        //     let brightness_factor = 0.25;
+        //     (Vec3::new(1.0, 1.0, 1.0) * (1.0 - gradient_factor)
+        //         + Vec3::new(0.5, 0.7, 1.0) * gradient_factor)
+        //         * brightness_factor
+        Vec3::ZERO
     }
 }

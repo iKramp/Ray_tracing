@@ -13,7 +13,7 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::Window;
 
 use crate::modules::point_recorder::fake_points;
-use crate::modules::{record_points, SceneBuilder};
+use crate::modules::{record_points, scene_builder::SceneBuilder};
 
 const WIDTH: usize = 640 * 2;
 const HEIGHT: usize = 360 * 2;
@@ -32,7 +32,7 @@ pub fn main() {
         ),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
-        fov: 90.0,
+        fov: 65.0,
         depth: 10,
         debug_number: 128,
         debug_information: DebugInformation::None,
@@ -53,10 +53,20 @@ pub fn main() {
             * glam::Quat::from_rotation_y(f32::consts::PI / 2.0),
         glam::Vec3::new(0.0, 2.0, 0.0),
     );
+    let transform_matrix_sphere = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(5.0, 5.0, 5.0),
+        glam::Quat::IDENTITY,
+        glam::Vec3::new(0.0, 2.0, 0.0),
+    );
     let transform_matrix_cornel_box = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(10.0, 10.0, 10.0),
         glam::Quat::IDENTITY,
         glam::Vec3::new(0.0, 0.0, 0.0),
+    );
+    let transform_matrix_plane_light = glam::Affine3A::from_scale_rotation_translation(
+        glam::Vec3::new(3.0, 3.0, 3.0),
+        glam::Quat::from_rotation_x(f32::consts::PI),
+        glam::Vec3::new(0.0, -9.99, 0.0),
     );
     let transform_matrix_cornel_plane_down = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(10.0, 10.0, 10.0),
@@ -91,18 +101,18 @@ pub fn main() {
 
     let (scene_info, mut buffers) = SceneBuilder::new()
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(1.0, 1.0, 1.0),
+            color_surface: Vec3::new(0.9, 0.9, 0.9),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.0,
-            ior: 1.5,
+            roughness: 0.7,
+            ior: 0.0,
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
             color_surface: Vec3::new(0.0, 0.0, 0.0),
-            color_emissive: Vec3::new(12.0, 15.0, 15.0),
+            color_emissive: Vec3::new(12.0, 15.0, 15.0) * 0.7,
             specular: 0.0,
             specular_roughness: 0.0,
             roughness: 0.0,
@@ -111,7 +121,7 @@ pub fn main() {
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(1.0, 1.0, 1.0),
+            color_surface: Vec3::new(0.9, 0.9, 0.9),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
@@ -150,49 +160,54 @@ pub fn main() {
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
+        // .add_obj_file(
+        //     include_str!("./resources/dragon_8k.obj"),
+        //     &[transform_matrix_dragon],
+        //     0,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/smooth_sphere.obj"),
+        //     &[transform_matrix_sphere],
+        //     0,
+        // )
         .add_obj_file(
-            include_str!("./resources/dragon_80k.obj"),
-            &[transform_matrix_dragon],
+            include_str!("./resources/ico_sphere_sharp.obj"),
+            &[transform_matrix_sphere],
             0,
         )
         // .add_obj_file(
-        //     include_str!("./resources/cornel_box.obj"),
-        //     &[transform_matrix_cornel_box],
-        //     1,
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_down],
+        //     2,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_up],
+        //     2,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_left],
+        //     4,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_right],
+        //     5,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_front],
+        //     2,
+        // )
+        // .add_obj_file(
+        //     include_str!("./resources/plane.obj"),
+        //     &[transform_matrix_cornel_plane_back],
+        //     3,
         // )
         .add_obj_file(
             include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_down],
-            2,
-        )
-        .add_obj_file(
-            include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_up],
-            2,
-        )
-        .add_obj_file(
-            include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_left],
-            4,
-        )
-        .add_obj_file(
-            include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_right],
-            5,
-        )
-        .add_obj_file(
-            include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_front],
-            2,
-        )
-        .add_obj_file(
-            include_str!("./resources/plane.obj"),
-            &[transform_matrix_cornel_plane_back],
-            3,
-        )
-        .add_obj_file(
-            include_str!("./resources/teapot.obj"),
-            &[transform_matrix_teapot_light],
+            &[transform_matrix_plane_light],
             1,
         )
         .sun_orientation(Vec3::new(1.0, -1.0, 1.0))

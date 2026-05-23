@@ -140,6 +140,20 @@ impl BufferHolder {
         self.buffers.get(name)
     }
 
+    pub fn get_element<T>(&self, name: &str, index: usize) -> Option<&T> {
+        self.buffers.get(name).and_then(|buffer| {
+            if index < buffer.num_elements {
+                let elem_size = buffer.data.len() / buffer.num_elements;
+                let start = index * elem_size;
+                let end = start + elem_size;
+                let elem_data = &buffer.data[start..end];
+                Some(unsafe { &*(elem_data.as_ptr() as *const T) })
+            } else {
+                None
+            }
+        })
+    }
+
     pub fn get_num_elements(&self, name: &str) -> Option<usize> {
         self.buffers.get(name).map(|buffer| buffer.num_elements)
     }
@@ -172,6 +186,11 @@ impl BufferHolder {
 
     pub fn clear_changed(&mut self) {
         self.changed = false;
+    }
+
+    pub fn clear(&mut self, name: &str) {
+        self.buffers.remove(name);
+        self.changed = true;
     }
 }
 

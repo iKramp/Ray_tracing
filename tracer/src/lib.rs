@@ -19,6 +19,8 @@ use crate::modules::{
 pub mod debug_points;
 pub mod modules;
 
+//returns
+//(color contribution, new ray, whether to stop or continue, direct color contribution for mis)
 pub fn tracer_main(
     trace_ray: Ray,
     rand_seed: u32,
@@ -38,7 +40,7 @@ pub fn tracer_main(
     material_buffer: &[GenericMaterial],
 
     debug_points_array: &mut [Vec3Aligned],
-) -> (Vec3, Ray, RayReturnState) {
+) -> (Vec3, Ray, RayReturnState, Vec3) {
     let objects = ObjectInfo {
         vertex_buffer,
         normal_buffer,

@@ -92,6 +92,7 @@ pub struct SceneInfo {
     pub num_bvh_nodes: u32,
     pub num_triangles: u32,
     pub num_materials: u32,
+    pub num_emissive_instances: u32,
     pub sun_orientation: Vec3,
 }
 
@@ -280,13 +281,15 @@ impl BoundingBox {
 #[derive(Debug, Clone)]
 pub struct Object {
     pub bvh_root: u32,
+    pub num_triangles: u32,
+    pub triangle_start: u32,
+    pub material_id: u32,
 }
 
 #[derive(Debug, Clone)]
 pub struct Instance {
     pub transform: glam::Affine3A,
     pub object_id: u32,
-    pub material_id: u32,
 }
 
 #[derive(Debug, Clone)]

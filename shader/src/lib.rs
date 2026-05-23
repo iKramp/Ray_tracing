@@ -30,6 +30,7 @@ use tracer::tracer_main;
 #[spirv(compute(threads(16, 16)))]
 pub fn render_pixel(
     #[spirv(global_invocation_id)] id: UVec3,
+    #[spirv(push_constant)] half: &u32,
 
     #[spirv(uniform, descriptor_set = 0, binding = 0)] data: &CamData,
     #[spirv(uniform, descriptor_set = 0, binding = 1)] scene_info: &SceneInfo,
@@ -58,6 +59,9 @@ pub fn render_pixel(
     #[spirv(storage_buffer, descriptor_set = 0, binding = 16)]
     material_buffer: &[GenericMaterial],
 ) {
+    let x = id.x + half * (data.canvas_width / 2);
+    let id = UVec3::new(x, id.y, id.z);
+
     if id.x >= data.canvas_width || id.y >= data.canvas_height {
         // Out of bounds, skip processing.
         return;
@@ -79,7 +83,7 @@ pub fn render_pixel(
         unsafe { res_output.write(id.xy(), Vec4::ZERO) };
     }
 
-    let (ray, mut curr_color) = if !is_ray_nan(&ray_buffer[coord_index]) {
+    let (ray, curr_color) = if !is_ray_nan(&ray_buffer[coord_index]) {
         (ray_buffer[coord_index], pixel_acc_buffer[coord_index])
     } else {
         let mut vec = claculate_vec_dir_from_cam(
@@ -120,35 +124,53 @@ pub fn render_pixel(
     }
 
     let rendered_color = Vec4::new(ret.0.x, ret.0.y, ret.0.z, 1.0);
-    curr_color = rendered_color;
-    pixel_acc_buffer[coord_index] = curr_color;
+    pixel_acc_buffer[coord_index] = rendered_color;
 
     match ret.2 {
         RayReturnState::Killed => {
             ray_buffer[coord_index] = Ray::NAN;
-            return;
         }
         RayReturnState::Ray => {
             ray_buffer[coord_index] = ret.1;
-            return;
+
+            let mis_direct_color = ret.3;
+
+            if !is_vec_3_nan(&mis_direct_color) {
+                let mis_contrib_color = Vec4::new(
+                    mis_direct_color.x,
+                    mis_direct_color.y,
+                    mis_direct_color.z,
+                    1.0,
+                );
+                add_contribution(mis_contrib_color, acc_buffer, coord_index);
+            }
         }
         RayReturnState::Stop => {
+            // add_contribution(rendered_color, acc_buffer, coord_index);
             ray_buffer[coord_index] = Ray::NAN;
         }
     }
 
-    let acc_color = acc_buffer[coord_index] + curr_color;
-    acc_buffer[coord_index] = acc_color;
+    let present_color = get_present_color(acc_buffer, coord_index);
 
+    unsafe { res_output.write(id.xy(), present_color) }
+}
+
+fn add_contribution(contrib_color: Vec4, acc_buffer: &mut [Vec4], coord_index: usize) {
+    let acc_color = acc_buffer[coord_index] + contrib_color;
+    acc_buffer[coord_index] = acc_color;
+}
+
+fn get_present_color(acc_buffer: &[Vec4], coord_index: usize) -> Vec4 {
+    let acc_color = acc_buffer[coord_index];
     let new_color = acc_color.xyz() / acc_color.w;
 
     //gamma correct
-    let present_color = Vec4::new(
+
+    Vec4::new(
         new_color.x.powf(1.0 / 2.2),
         new_color.y.powf(1.0 / 2.2),
         new_color.z.powf(1.0 / 2.2),
         1.0,
-    );
-
-    unsafe { res_output.write(id.xy(), present_color) }
+    )
 }
