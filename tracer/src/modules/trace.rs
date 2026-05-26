@@ -46,21 +46,6 @@ pub fn vector_angle(lhs: Vec4, rhs: Vec4) -> f32 {
     (dot_product / len_product).acos()
 }
 
-fn solid_angle(point: Vec3, tri_a: Vec3, tri_b: Vec3, tri_c: Vec3) -> f32 {
-    let a = (tri_a - point).normalize();
-    let b = (tri_b - point).normalize();
-    let c = (tri_c - point).normalize();
-
-    let numerator = a.dot(b.cross(c)).abs();
-    let denominator = 1.0 + a.dot(b) + a.dot(c) + b.dot(c);
-    let half_angle = numerator.atan2(denominator);
-    2.0 * half_angle
-}
-
-fn sphere_fraction(origin: Vec3, a: Vec3, b: Vec3, c: Vec3) -> f32 {
-    solid_angle(origin, a, b, c) / (4.0 * PI)
-}
-
 //returns
 //(color contribution, new ray, whether to stop or continue, direct color contribution for mis)
 pub fn get_color(
@@ -75,8 +60,14 @@ pub fn get_color(
     let luminance = color.x.max(color.y).max(color.z);
     let probability = (0.5 + luminance / 2.0).clamp(0.0, 1.0);
     let rand_val = rand_float(&mut rng_seed, (0.0, 1.0));
+
     if rand_val > probability {
-        return (Vec3::ZERO, in_ray, RayReturnState::Stop, Vec3::NAN);
+        return (
+            Vec3::new(0.0, 0.0, 0.0),
+            in_ray,
+            RayReturnState::Stop,
+            Vec3::NAN,
+        );
     } else {
         color /= probability;
     }
@@ -99,8 +90,21 @@ pub fn get_color(
     }
 
     match ray_return {
-        RayReturnState::Killed => (Vec3::ZERO, in_ray, ray_return, Vec3::NAN),
-        _ => (color, in_ray, ray_return, direct_cotrib),
+        //main is contributed
+        RayReturnState::Stop => (
+            Vec3::new(color.x, color.y, color.z),
+            in_ray,
+            ray_return,
+            Vec3::NAN,
+        ),
+        //direct is contributed
+        RayReturnState::Ray => (
+            Vec3::new(color.x, color.y, color.z), //will be ignored for now anyway
+            in_ray,
+            ray_return,
+            Vec3::new(direct_cotrib.x, direct_cotrib.y, direct_cotrib.z),
+        ),
+        RayReturnState::Killed => (Vec3::new(0.0, 0.0, 0.0), in_ray, ray_return, Vec3::NAN),
     }
 }
 
@@ -244,7 +248,8 @@ impl Ray {
         curr_color: Vec3,
         seed: &mut u32,
     ) -> (Vec3, Ray) {
-        const ILLEGAL: Vec3 = Vec3::ZERO;
+        const ILLEGAL: Vec3 = Vec3::NAN;
+        const BLOCKED: Vec3 = Vec3::ZERO;
         let num_emissive = scene_info.num_emissive_instances;
         let instance_to_check = xor_shift(seed) % num_emissive;
         let instance = &objects.instance_buffer[instance_to_check as usize];
@@ -292,7 +297,7 @@ impl Ray {
 
         //check for invalid, through current triangle
         if shading_normal.dot(light_ray.orientation) < f32::EPSILON {
-            return (ILLEGAL, light_ray);
+            return (BLOCKED, light_ray);
         }
 
         let distance = light_ray.orientation.length();
@@ -307,7 +312,7 @@ impl Ray {
         let same_tri = record.triangle_id == triangle_id && record.instance_id == instance_to_check;
 
         if !same_tri || distance < 0.5 {
-            return (ILLEGAL, light_ray);
+            return (BLOCKED, light_ray);
         }
 
         let material = &objects.material_buffer[object.material_id as usize];
@@ -315,14 +320,14 @@ impl Ray {
         let direct_light = material.emissive_color() * curr_color;
 
         let d2 = distance * distance;
-        let g = light_normal.dot(-light_ray.orientation).abs() / d2;
+        let g = light_normal.dot(-light_ray.orientation).max(0.0) / d2;
 
-        let direct_light = direct_light * g * shading_normal.dot(light_ray.orientation).abs();
+        let direct_light = direct_light * g * shading_normal.dot(light_ray.orientation).max(0.0);
 
         let area = ab.cross(ac).length() / 2.0;
         let pdf = 1.0 / (num_emissive as f32 * num_triangles as f32 * area);
 
-        (direct_light / pdf * PI / 2.0, light_ray)
+        (direct_light / pdf / PI, light_ray)
     }
 
     fn shadow_terminator_offset(

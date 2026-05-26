@@ -3,9 +3,7 @@ use core::f32::consts::PI;
 
 use crate::modules::trace::Ray;
 
-//use image::GenericImageView;
 use super::rand_float;
-use shared::acos_approx;
 use shared::glam::{Vec2, Vec3};
 #[allow(unused_imports)] //actually used for .sqrt because we don't allow std
 use spirv_std::num_traits::Float;
@@ -23,14 +21,11 @@ pub struct RayReturn {
 }
 
 fn rand_vec_in_unit_sphere(seed: &mut u32) -> Vec3 {
-    let phi = rand_float(seed, (0.0, 2.0 * PI));
-    let costheta = rand_float(seed, (-1.0, 1.0));
-
-    let theta = acos_approx(costheta);
-    let x = theta.sin() * phi.cos();
-    let y = theta.sin() * phi.sin();
-    let z = costheta;
-
+    let y = rand_float(seed, (-1.0, 1.0));
+    let r = (1.0 - y * y).sqrt();
+    let long = rand_float(seed, (0.0, 2.0 * PI));
+    let x = r * long.cos();
+    let z = r * long.sin();
     Vec3::new(x, y, z)
 }
 

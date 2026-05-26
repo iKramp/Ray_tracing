@@ -42,6 +42,7 @@
         pkgs.SDL2
         pkgs.rust-analyzer
         pkgs.clippy
+        pkgs.spirv-tools
       ];
 
       shellHook = ''

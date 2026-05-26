@@ -28,7 +28,7 @@ pub fn main() {
         transform: glam::Affine3A::from_scale_rotation_translation(
             Vec3::ONE,
             Quat::IDENTITY,
-            Vec3::new(0.0, 0.0, -20.0),
+            Vec3::new(0.0, 0.0, -50.0),
         ),
         canvas_width: WIDTH as u32,
         canvas_height: HEIGHT as u32,
@@ -56,7 +56,7 @@ pub fn main() {
     let transform_matrix_sphere = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(5.0, 5.0, 5.0),
         glam::Quat::IDENTITY,
-        glam::Vec3::new(0.0, 2.0, 0.0),
+        glam::Vec3::new(0.0, 0.0, 0.0),
     );
     let transform_matrix_cornel_box = glam::Affine3A::from_scale_rotation_translation(
         glam::Vec3::new(10.0, 10.0, 10.0),
@@ -101,18 +101,18 @@ pub fn main() {
 
     let (scene_info, mut buffers) = SceneBuilder::new()
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(0.9, 0.9, 0.9),
+            color_surface: Vec3::new(1.0, 1.0, 1.0),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.7,
+            roughness: 1.0,
             ior: 0.0,
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
             color_surface: Vec3::new(0.0, 0.0, 0.0),
-            color_emissive: Vec3::new(12.0, 15.0, 15.0) * 0.7,
+            color_emissive: Vec3::new(15.0, 15.0, 15.0) * 0.3,
             specular: 0.0,
             specular_roughness: 0.0,
             roughness: 0.0,
@@ -121,41 +121,41 @@ pub fn main() {
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(0.9, 0.9, 0.9),
+            color_surface: Vec3::new(1.0, 1.0, 1.0),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.9,
+            roughness: 1.0,
             ior: 0.0, //no refraction
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(0.7, 0.075, 0.075),
+            color_surface: Vec3::new(1.0, 0.0, 0.0),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.9,
+            roughness: 1.0,
             ior: 0.0, //no refraction
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(0.075, 0.075, 0.7),
+            color_surface: Vec3::new(0.0, 0.0, 1.0),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.9,
+            roughness: 1.0,
             ior: 0.0, //no refraction
             padding_1: [0; 4],
             padding_2: [0; 4],
         })
         .add_material(GenericMaterial {
-            color_surface: Vec3::new(0.075, 0.7, 0.075),
+            color_surface: Vec3::new(0.0, 1.0, 0.0),
             color_emissive: Vec3::ZERO,
             specular: 0.0,
             specular_roughness: 0.0,
-            roughness: 0.9,
+            roughness: 1.0,
             ior: 0.0, //no refraction
             padding_1: [0; 4],
             padding_2: [0; 4],
@@ -175,36 +175,36 @@ pub fn main() {
             &[transform_matrix_sphere],
             0,
         )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_down],
-        //     2,
-        // )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_up],
-        //     2,
-        // )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_left],
-        //     4,
-        // )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_right],
-        //     5,
-        // )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_front],
-        //     2,
-        // )
-        // .add_obj_file(
-        //     include_str!("./resources/plane.obj"),
-        //     &[transform_matrix_cornel_plane_back],
-        //     3,
-        // )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_down],
+            2,
+        )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_up],
+            2,
+        )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_left],
+            4,
+        )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_right],
+            5,
+        )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_front],
+            2,
+        )
+        .add_obj_file(
+            include_str!("./resources/plane.obj"),
+            &[transform_matrix_cornel_plane_back],
+            3,
+        )
         .add_obj_file(
             include_str!("./resources/plane.obj"),
             &[transform_matrix_plane_light],

@@ -20,7 +20,7 @@ pub mod debug_points;
 pub mod modules;
 
 //returns
-//(color contribution, new ray, whether to stop or continue, direct color contribution for mis)
+//(color contribution (w is weight, 0 to 1), new ray, whether to stop or continue, direct color contribution for mis)
 pub fn tracer_main(
     trace_ray: Ray,
     rand_seed: u32,

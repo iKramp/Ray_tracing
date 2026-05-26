@@ -27,6 +27,8 @@ use tracer::modules::trace::claculate_vec_dir_from_cam;
 use tracer::modules::trace::Ray;
 use tracer::tracer_main;
 
+const PIXEL_ACC_RESET_VAL: Vec4 = Vec4::new(1.0, 1.0, 1.0, 0.0);
+
 #[spirv(compute(threads(16, 16)))]
 pub fn render_pixel(
     #[spirv(global_invocation_id)] id: UVec3,
@@ -77,7 +79,7 @@ pub fn render_pixel(
     let coord_index = (id.x + id.y * data.canvas_width) as usize;
 
     if data.reset == 1 {
-        pixel_acc_buffer[coord_index] = vec4(1.0, 1.0, 1.0, 0.0);
+        pixel_acc_buffer[coord_index] = PIXEL_ACC_RESET_VAL;
         ray_buffer[coord_index] = Ray::NAN;
         acc_buffer[coord_index] = vec4(0.0, 0.0, 0.0, 0.0);
         unsafe { res_output.write(id.xy(), Vec4::ZERO) };
@@ -94,7 +96,7 @@ pub fn render_pixel(
             ),
         );
         vec.normalize();
-        (vec, vec4(1.0, 1.0, 1.0, 0.0))
+        (vec, PIXEL_ACC_RESET_VAL)
     };
 
     let mut ret = tracer_main(
@@ -115,9 +117,13 @@ pub fn render_pixel(
         debug_points_array,
     );
 
+    let samples_applied = curr_color.w;
+    let main_ray_contrib_factor = 0.5_f32.powf(samples_applied.max(1.0) - 1.0);
+    let direct_ray_contrib_factor = 0.5_f32.powf(samples_applied);
+
     if ret.0.x < f32::EPSILON * 10.0
-        || ret.0.y < f32::EPSILON * 10.0
-        || ret.0.z < f32::EPSILON * 10.0
+        && ret.0.y < f32::EPSILON * 10.0
+        && ret.0.z < f32::EPSILON * 10.0
     {
         ret.2 = RayReturnState::Stop;
         ret.0 = Vec3::ZERO;
@@ -127,27 +133,35 @@ pub fn render_pixel(
     pixel_acc_buffer[coord_index] = rendered_color;
 
     match ret.2 {
-        RayReturnState::Killed => {
-            ray_buffer[coord_index] = Ray::NAN;
-        }
         RayReturnState::Ray => {
             ray_buffer[coord_index] = ret.1;
 
             let mis_direct_color = ret.3;
 
-            if !is_vec_3_nan(&mis_direct_color) {
+            if !is_vec_3_nan(&mis_direct_color.xyz()) {
                 let mis_contrib_color = Vec4::new(
-                    mis_direct_color.x,
-                    mis_direct_color.y,
-                    mis_direct_color.z,
-                    1.0,
+                    mis_direct_color.x, // * direct_ray_contrib_factor,
+                    mis_direct_color.y, // * direct_ray_contrib_factor,
+                    mis_direct_color.z, // * direct_ray_contrib_factor,
+                    direct_ray_contrib_factor,
                 );
-                add_contribution(mis_contrib_color, acc_buffer, coord_index);
+                add_contribution(mis_contrib_color, acc_buffer, pixel_acc_buffer, coord_index);
             }
         }
         RayReturnState::Stop => {
-            // add_contribution(rendered_color, acc_buffer, coord_index);
+            let rendered_color = Vec4::new(
+                rendered_color.x * main_ray_contrib_factor,
+                rendered_color.y * main_ray_contrib_factor,
+                rendered_color.z * main_ray_contrib_factor,
+                main_ray_contrib_factor,
+            );
+            // add_contribution(rendered_color, acc_buffer, pixel_acc_buffer, coord_index);
             ray_buffer[coord_index] = Ray::NAN;
+        }
+        RayReturnState::Killed => {
+            ray_buffer[coord_index] = Ray::NAN;
+            pixel_acc_buffer[coord_index] = PIXEL_ACC_RESET_VAL;
+            acc_buffer[coord_index] = Vec4::ZERO;
         }
     }
 
@@ -156,9 +170,15 @@ pub fn render_pixel(
     unsafe { res_output.write(id.xy(), present_color) }
 }
 
-fn add_contribution(contrib_color: Vec4, acc_buffer: &mut [Vec4], coord_index: usize) {
+fn add_contribution(
+    contrib_color: Vec4,
+    acc_buffer: &mut [Vec4],
+    pixel_acc_buffer: &mut [Vec4],
+    coord_index: usize,
+) {
     let acc_color = acc_buffer[coord_index] + contrib_color;
     acc_buffer[coord_index] = acc_color;
+    pixel_acc_buffer[coord_index].w += 1.0; //1 more contribution added
 }
 
 fn get_present_color(acc_buffer: &[Vec4], coord_index: usize) -> Vec4 {
